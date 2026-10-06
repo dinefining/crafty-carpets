@@ -22,7 +22,6 @@ No build step, no server, no dependencies — open `index.html` and it runs.
 | Cmd+S | Save to collection |
 | Pinch | Zoom |
 | Space + drag | Pan |
-| Hold motif (touch) | Rotate and size |
 
 Saved rugs are kept in your browser (localStorage), so they stay on the device you made them on.
 

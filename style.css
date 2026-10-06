@@ -86,8 +86,9 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 .rail .gap { flex: none; height: 9px; border-bottom: 1px solid var(--line); }
 
 /* ---------- flyout ---------- */
-/* touch only: hold the motif tile for rotate / size */
-#railLib { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* touch screens only: transform button opens the rotate / size row */
+.rail #bXform { display: none; }
+@media (hover: none), (pointer: coarse) { .rail #bXform { display: grid; } }
 .xform { position: fixed; z-index: 26; display: flex; height: var(--rb); background: var(--panel); border: 1px solid var(--line); }
 .xform[hidden] { display: none; }
 .xform button { all: unset; box-sizing: border-box; width: calc(var(--rb) - 2px); height: 100%; display: grid; place-items: center; color: var(--fg); cursor: pointer; -webkit-tap-highlight-color: transparent; }
