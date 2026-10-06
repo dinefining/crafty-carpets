@@ -627,7 +627,36 @@
     $('bSaved').setAttribute('aria-pressed', side.dataset.show === 'saved' ? 'true' : 'false');
     if (side.dataset.show === 'saved') { renderColl(); scrollCollEnd(); }
   }
+  // ---------- touch: hold the motif tile → rotate / size row (desktop keeps R / T / + / −) ----------
+  const XF = { t: 0, fired: false, x: 0, y: 0 };
+  function openXform() {
+    closeFly(); const r = $('railLib').getBoundingClientRect(), el = $('xform');
+    el.hidden = false; el.style.left = (r.right + GAP()) + 'px'; el.style.top = r.top + 'px';
+  }
+  function closeXform() { $('xform').hidden = true; }
+  $('railLib').addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    XF.fired = false; XF.x = e.clientX; XF.y = e.clientY; clearTimeout(XF.t);
+    XF.t = setTimeout(() => { XF.fired = true; openXform(); if (navigator.vibrate) navigator.vibrate(10); }, 450);
+  });
+  $('railLib').addEventListener('pointermove', e => { if (Math.hypot(e.clientX - XF.x, e.clientY - XF.y) > 10) clearTimeout(XF.t); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => $('railLib').addEventListener(t, () => clearTimeout(XF.t)));
+  $('railLib').addEventListener('contextmenu', e => { if (XF.fired || e.pointerType === 'touch') e.preventDefault(); });
+  $('xform').addEventListener('click', e => {
+    const b = e.target.closest('[data-x]'); if (!b) return;
+    const x = b.dataset.x;
+    if (x === 'ccw') rotate(-1); else if (x === 'cw') rotate(1); else setTile(S.k + (x === 'plus' ? 1 : -1));
+  });
+  // any tap outside closes it, and that tap does nothing else (no stray paint)
+  let swallowClick = false;
+  document.addEventListener('pointerdown', e => {
+    if ($('xform').hidden || $('xform').contains(e.target)) return;
+    closeXform(); e.stopPropagation(); e.preventDefault(); swallowClick = true; setTimeout(() => { swallowClick = false; }, 600);
+  }, true);
+  document.addEventListener('click', e => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+  window.addEventListener('resize', closeXform);
   $('railLib').addEventListener('click', () => {
+    if (XF.fired) { XF.fired = false; return; }   // the hold opened the row; don't also open the library
     { setSide('lib'); const cur = tileEls.get(S.motif); if (cur && $('side').dataset.show === 'lib') cur.scrollIntoView({ block: 'center' }); }
   });
   // one mirror button cycles through its four states
