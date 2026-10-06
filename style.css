@@ -58,6 +58,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 .rb:focus-visible { outline: 1px solid var(--fg); outline-offset: -3px; }
 .rb svg { display: block; }
 #railLib { padding: 0; height: var(--rb); overflow: hidden; }
+#railLib[aria-pressed="true"] { background: var(--panel); border-color: var(--line); }  /* no white frame round the motif while the library is open */
 .rail .rb[data-tool="paint"], .rail #bSaved { margin-top: auto; }
 .rail .rb[data-tool], .rail #bUndo, .rail #bRedo, .rail #bClear, .rail #mirrorBtn { border-radius: 50%; }
 #railLib canvas { aspect-ratio: 1; }
