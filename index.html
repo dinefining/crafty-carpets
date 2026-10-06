@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crafty Carpets</title>
+<meta name="description" content="Weave your own rug: pick motifs, paint them onto a knotted grid, mirror, rotate, recolour and export.">
+<meta name="theme-color" content="#141414">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Crafty Carpets">
+<meta property="og:description" content="Weave your own rug: pick motifs, paint them onto a knotted grid, mirror, rotate, recolour and export.">
+<meta property="og:image" content="og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" id="rail" aria-label="Tools">
+    <button class="rb" type="button" id="railLib" aria-pressed="false" aria-label="Current motif. Open the motif library" title="Current motif · open motifs"><canvas id="railCur" width="13" height="13"></canvas></button>
+    <button class="rb" type="button" data-open="colour" aria-expanded="false" aria-label="Colours" title="Colours"><span class="mini" id="railCol"><i style="background:#00aeef"></i><i style="background:#ec008c"></i><i style="background:#fff200"></i><i style="background:#1a1a1a"></i></span></button>
+    <button class="rb" type="button" data-tool="paint" aria-label="Paint" title="Paint"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M230.64,25.36a32,32,0,0,0-45.26,0q-.21.21-.42.45L131.55,88.22,121,77.64a24,24,0,0,0-33.95,0l-76.69,76.7a8,8,0,0,0,0,11.31l80,80a8,8,0,0,0,11.31,0L178.36,169a24,24,0,0,0,0-33.95l-10.58-10.57L230.19,71c.15-.14.31-.28.45-.43A32,32,0,0,0,230.64,25.36ZM96,228.69,79.32,212l22.34-22.35a8,8,0,0,0-11.31-11.31L68,200.68,55.32,188l22.34-22.35a8,8,0,0,0-11.31-11.31L44,176.68,27.31,160,72,115.31,140.69,184ZM219.52,59.1l-68.71,58.81a8,8,0,0,0-.46,11.74L167,146.34a8,8,0,0,1,0,11.31l-15,15L83.32,104l15-15a8,8,0,0,1,11.31,0l16.69,16.69a8,8,0,0,0,11.74-.46L196.9,36.48A16,16,0,0,1,219.52,59.1Z"/></svg></button>
+    <button class="rb" type="button" data-tool="erase" aria-label="Erase" title="Erase"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225,80.4,183.6,39a24,24,0,0,0-33.94,0L31,157.66a24,24,0,0,0,0,33.94l30.06,30.06A8,8,0,0,0,66.74,224H216a8,8,0,0,0,0-16h-84.7L225,114.34A24,24,0,0,0,225,80.4ZM108.68,208H70.05L42.33,180.28a8,8,0,0,1,0-11.31L96,115.31,148.69,168Zm105-105L160,156.69,107.31,104,161,50.34a8,8,0,0,1,11.32,0l41.38,41.38a8,8,0,0,1,0,11.31Z"/></svg></button>
+    <button class="rb" type="button" id="bUndo" aria-label="Undo" title="Undo (⌘Z)"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,200a8,8,0,0,1-16,0,88.1,88.1,0,0,0-88-88H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,61.66L51.31,96H128A104.11,104.11,0,0,1,232,200Z"/></svg></button>
+    <button class="rb" type="button" id="bRedo" aria-label="Redo" title="Redo (⇧⌘Z)"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H128a88.1,88.1,0,0,0-88,88,8,8,0,0,1-16,0A104.11,104.11,0,0,1,128,96h76.69L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66Z"/></svg></button>
+    <button class="rb" type="button" id="bClear" aria-label="Clear all" title="Clear all"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg></button>
+    <button class="rb" type="button" id="mirrorBtn" aria-label="Mirror" title="Mirror"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" id="mirrorIcon"></svg></button>
+    <button class="rb" type="button" id="bSaved" aria-pressed="false" aria-label="Your collection — save this rug or open a saved one" title="Collection · ⌘S saves"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M184,32H72A16,16,0,0,0,56,48V224a8,8,0,0,0,12.24,6.78L128,193.43l59.77,37.35A8,8,0,0,0,200,224V48A16,16,0,0,0,184,32Zm0,177.57-51.77-32.35a8,8,0,0,0-8.48,0L72,209.57V48H184Z"/></svg></button>
+    <button class="rb" type="button" id="bExport" data-open="export" aria-expanded="false" aria-label="Export image" title="Export"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M50.34,117.66a8,8,0,0,1,11.32-11.32L120,164.69V32a8,8,0,0,1,16,0V164.69l58.34-58.35a8,8,0,0,1,11.32,11.32l-72,72a8,8,0,0,1-11.32,0ZM216,208H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></svg></button>
+  </nav>
+
+  <div class="side" id="side" data-show="none">
+    <aside class="library" id="library" aria-label="Motif library">
+      <div hidden><span id="mcount"></span><button id="libToggle"></button></div>
+      <div class="tabs" id="tabs" role="toolbar" aria-label="Filter motifs by tradition"></div>
+      <div class="lib" id="lib"></div>
+    </aside>
+    <aside class="collection" id="collection" aria-label="Your collection">
+      <div class="coll" id="coll"></div>
+      <div class="collnote" id="collNote" hidden></div>
+      <div class="savebar">
+        <button class="mi" type="button" id="saveNow"><span>Save Carpet</span></button>
+        <button class="mi" type="button" id="saveCopy" hidden><span>Save as new</span></button>
+      </div>
+    </aside>
+  </div>
+
+  <section class="view" id="view" aria-label="Rug canvas">
+    <canvas id="cv" aria-label="Rug: click to paint the selected motif"></canvas>
+    <button class="infoBtn" type="button" id="infoBtn" aria-label="How it works" aria-expanded="false" title="How it works"><span class="i">i</span></button>
+    <div class="info" id="infoPop" hidden role="dialog" aria-label="Crafty Carpets — how it works">
+      <h1 class="infoTitle">Crafty Carpets</h1>
+      <dl>
+        <dt>Click / drag</dt><dd>Paint motif</dd>
+        <dt>R</dt><dd>Rotate right</dd>
+        <dt>T</dt><dd>Rotate left</dd>
+        <dt>+</dt><dd>Increase motif size</dd>
+        <dt>−</dt><dd>Decrease motif size</dd>
+        <dt>M</dt><dd>Change mirror</dd>
+        <dt>E</dt><dd>Eraser on / off</dd>
+        <dt>[</dt><dd>Previous motif</dd>
+        <dt>]</dt><dd>Next motif</dd>
+        <dt>Cmd+Z</dt><dd>Undo</dd>
+        <dt>Cmd+Shift+Z</dt><dd>Redo</dd>
+        <dt>Cmd+S</dt><dd>Save to collection</dd>
+        <dt>Pinch</dt><dd>Zoom</dd>
+        <dt>Space + drag</dt><dd>Pan</dd>
+      </dl>
+    </div>
+    <div hidden><button id="zoomBtn"></button></div>
+    <div hidden><span id="railTile"></span><span id="railRug"></span><button id="tileBtn"></button><button id="rugBtn"></button><button id="fitBtn"></button></div>
+  </section>
+
+  <div class="fly" id="fly" hidden role="dialog" aria-label="Settings">
+    <div data-fly="tile">
+      <span class="cl">Tile size</span>
+      <div class="stepper"><button class="b" type="button" id="tileDn" aria-label="Smaller motifs">−</button><span class="scrub" id="tileVal" title="Drag sideways to change">1×</span><button class="b" type="button" id="tileUp" aria-label="Bigger motifs">+</button></div>
+    </div>
+    <div data-fly="rug">
+      <span class="cl">Rug size · knots</span>
+      <div class="stepper"><button class="b" type="button" id="rugDn" aria-label="Smaller rug">−</button><span class="scrub" id="rugVal" title="Drag sideways to change">81×123</span><button class="b" type="button" id="rugUp" aria-label="Bigger rug">+</button></div>
+    </div>
+    <div data-fly="colour">
+      <span class="cl">Colour <span id="palName" hidden></span></span>
+      <div class="swatches" id="mine"></div>
+      <span class="cl">Presets</span>
+      <div class="pals" id="pals"></div>
+    </div>
+    <div data-fly="export" role="menu">
+      <button class="mi" type="button" role="menuitem" data-ex="jpeg" aria-label="Download as JPEG"><span>JPEG</span></button>
+      <button class="mi" type="button" role="menuitem" data-ex="png" aria-label="Download as PNG"><span>PNG</span></button>
+    </div>
+    <div data-fly="zoom">
+      <span class="cl">Zoom</span>
+      <div class="zoomrow">
+        <button class="b" type="button" id="zOut" aria-label="Zoom out">−</button>
+        <span id="zoomPct">100%</span>
+        <button class="b" type="button" id="zIn" aria-label="Zoom in">+</button>
+        <button class="b" type="button" id="zFit">Fit</button>
+      </div>
+    </div>
+  </div>
+
+  <div hidden><span id="sizeTag"></span><span id="st1"></span><span id="hint"></span><button id="bSound"></button></div>
+
+  <div class="picker" id="picker" hidden role="dialog" aria-label="Colour picker">
+    <canvas id="pkSV" width="208" height="132"></canvas>
+    <canvas id="pkH" width="208" height="12"></canvas>
+    <div class="pkrow"><span id="pkName">Base</span><input id="pkHex" maxlength="7" spellcheck="false" aria-label="Hex colour"></div>
+  </div>
+
+  <div class="overlay" id="ov" hidden>
+    <div class="sheet">
+      <div class="bar">
+        <span>Right-click or long-press the image to save it.</span>
+        <button class="b" type="button" id="bCopyImg">Copy image</button>
+        <button class="b" type="button" id="bClose">Close</button>
+      </div>
+      <img id="outImg" alt="Exported rug">
+    </div>
+  </div>
+</div>
+
+<script src="motifs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
