@@ -33,7 +33,7 @@ Saved rugs are kept in your browser (localStorage), so they stay on the device y
 | `style.css` | All styling (colours are CSS variables at the top) |
 | `motifs.js` | The motif library and colour palettes |
 | `app.js` | Canvas, painting, mirroring, colours, collection, export |
-| `favicon.svg`, `og.png` | Browser icon and link-preview image |
+| `favicon.svg`, `apple-touch-icon.png`, `og.png` | Browser icon, phone home-screen icon and link-preview image |
 
 ## Change things
 
@@ -49,4 +49,4 @@ Open `index.html` in a browser, or serve the folder with any static server, e.g.
 ## Publish
 
 Push the folder to a public GitHub repository and turn on **Settings → Pages → Deploy from branch (main, root)**.
-Once live, change the `og:image` line in `index.html` to the full address of `og.png` (e.g. `https://yourname.github.io/crafty-carpets/og.png`) so link previews show the image.
+If you rename the repo, update the `og:image` address in `index.html` to match (bump `?v=` whenever you change `og.png` so WhatsApp and others refetch it).

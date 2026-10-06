@@ -9,7 +9,7 @@
 
   // ---------- state ----------
   const S = {
-    style: 'Anatolian', motif: 'Azilal:0', pal: 'Your colours', colors: ['#262626', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
+    style: 'Anatolian', motif: 'Figure:18', pal: 'Your colours', colors: ['#262626', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
     repeat: 'single', mirror: 'both', lastMirror: 'both', gap: 0, swap: false, link: false, snap: 'off', k: 1, rot: 0, bg: '#141414', fringe: '#e9dfc9',
     kw: 81, tool: 'paint', sound: true, frame: 'none',
     stamps: []
@@ -190,9 +190,12 @@
     // leave room for the control panel when it is open
     // the toolbar floats over the canvas's left edge; centre the rug in the space beside it
     const L = $('rail').getBoundingClientRect().right - viewEl.getBoundingClientRect().left, uw = cw - L;
-    V.fit = Math.max(0.5, Math.min((uw - 60) / D.W, (ch - 110) / rows));
+    // phones: fill the space beside the toolbar, one gap from the right edge (in line with the i button)
+    const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 12, phone = cw <= 700;
+    V.fit = phone ? Math.max(0.5, Math.min((uw - gap) / D.W, (ch - 2 * gap) / rows))
+                  : Math.max(0.5, Math.min((uw - 60) / D.W, (ch - 110) / rows));
     V.z = V.fit; V.s = V.fit;
-    V.ox = Math.round(L + (uw - D.W * V.s) / 2); V.oy = Math.round((ch - D.H * V.s) / 2);
+    V.ox = Math.round(L + (uw - (phone ? gap : 0) - D.W * V.s) / 2); V.oy = Math.round((ch - D.H * V.s) / 2);
     draw();
   }
   function zoomAt(px, py, factor) {

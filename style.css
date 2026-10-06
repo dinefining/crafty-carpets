@@ -111,6 +111,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 .rug:hover .del, .rug:focus-within .del { display: grid; }
 .rug .del:hover, .rug .del.arm { background: var(--fg); color: var(--on-fg); }
 .rug .del.arm { display: grid; }
+@media (hover: none) { .rug .del { display: grid; } }
 .collnote { padding: 0 10px 10px; color: var(--mute); font-size: 10px; }
 .fly[data-show="export"] { min-width: 0; width: auto; padding: 0; gap: 0; }
 .fly [data-fly="export"] { gap: 0; flex-direction: row; height: calc(var(--rb) - 2px); }
@@ -206,7 +207,7 @@ button.b:focus-visible, .pal:focus-visible, .swatch:focus-visible { outline: 1px
   .side { width: min(380px, calc(100vw - var(--rail) - var(--gap))); }
   .side[data-show="saved"] { width: min(260px, calc(100vw - var(--rail) - var(--gap))); }
 }
-}
+@media (max-width: 700px) { :root { --rb: 36px; } }
 @media (max-width: 520px) { .lib { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .themeBtn { position: absolute; top: 12px; right: 12px; width: var(--rb); height: var(--rb); display: grid; place-items: center; padding: 0; background: var(--panel); color: var(--fg); border: 1px solid var(--line); cursor: pointer; z-index: 6; }
 .themeBtn:hover { background: var(--hover); }
