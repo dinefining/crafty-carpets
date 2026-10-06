@@ -596,6 +596,7 @@
   function nudgeForPanel() {
     const side = $('side'), open = side.dataset.show !== 'none';
     if (open) {
+      if (cw <= 700 && side.dataset.show === 'saved') return;     // phones: the collection just floats over the rug
       const pw = side.getBoundingClientRect().right - viewEl.getBoundingClientRect().left, x0 = V.ox, x1 = V.ox + D.W * V.s, gap = 24;
       if (x0 >= pw + gap - 1 || x1 <= pw) return;                 // clear of the panel, or already off to the left: leave it
       const room = cw - pw, w = x1 - x0;
