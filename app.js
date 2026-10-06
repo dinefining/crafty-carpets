@@ -631,6 +631,7 @@
   const XF = { t: 0, fired: false, x: 0, y: 0 };
   function openXform() {
     closeFly(); const r = $('railLib').getBoundingClientRect(), el = $('xform');
+    $('xval').textContent = S.k + '×';
     el.hidden = false; el.style.left = (r.right + GAP()) + 'px'; el.style.top = r.top + 'px';
   }
   function closeXform() { $('xform').hidden = true; }
@@ -645,7 +646,7 @@
   $('xform').addEventListener('click', e => {
     const b = e.target.closest('[data-x]'); if (!b) return;
     const x = b.dataset.x;
-    if (x === 'ccw') rotate(-1); else if (x === 'cw') rotate(1); else setTile(S.k + (x === 'plus' ? 1 : -1));
+    if (x === 'ccw') rotate(-1); else if (x === 'cw') rotate(1); else { setTile(S.k + (x === 'plus' ? 1 : -1)); $('xval').textContent = S.k + '×'; }
   });
   // any tap outside closes it, and that tap does nothing else (no stray paint)
   let swallowClick = false;
