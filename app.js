@@ -1086,10 +1086,13 @@
     if (!$('infoPop').hidden && !$('infoPop').contains(e.target) && !$('infoBtn').contains(e.target)) closeInfo();
     // the collection panel closes on any click outside it
     if ($('side').dataset.show === 'saved' && !$('collection').contains(e.target) && !$('bSaved').contains(e.target)) setSide('saved');
+    // the motif library closes on any click outside it — and that click still does its job (pick a tool, paint…)
+    if ($('side').dataset.show === 'lib' && !$('library').contains(e.target) && !$('railLib').contains(e.target)) setSide('lib');
   }, true);
   // info popup
-  function closeInfo() { $('infoPop').hidden = true; $('infoBtn').setAttribute('aria-expanded', 'false'); }
-  $('infoBtn').addEventListener('click', () => { const open = $('infoPop').hidden; $('infoPop').hidden = !open; $('infoBtn').setAttribute('aria-expanded', String(open)); });
+  function closeInfo() { $('infoPop').hidden = true; $('infoShade').hidden = true; $('infoBtn').setAttribute('aria-expanded', 'false'); }
+  $('infoClose').addEventListener('click', closeInfo);
+  $('infoBtn').addEventListener('click', () => { const open = $('infoPop').hidden; $('infoPop').hidden = !open; $('infoShade').hidden = !open; $('infoBtn').setAttribute('aria-expanded', String(open)); });
 
   // ---------- start ----------
   function resetRug(animate) {
