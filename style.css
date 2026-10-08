@@ -8,9 +8,11 @@
   --t-m: 16px;   /* body: panels, menus, tabs, info */
   --t-l: 19px;   /* button labels and headings */
   --t-xl: 24px;  /* large: popup credit line */
-  --t-xxl: 30px; /* titles: popup heading */
+  --t-xxl: 30px; /* titles */
+  /* the info popup scales its own text with its width: list and credit 15–28px, heading 22–40px */
   --bg: #121212;
   --panel: #161616;
+  --pop: #0d0d0d;      /* info popup fill: the panel colour as it looks under the dimming shade */
   --line: #3a3a3a;
   --fg: #f2f2f2;
   --mute: #7a7a7a;
@@ -25,13 +27,14 @@
   --edge: #888;        /* hover outline */
   --tilebg: #222;
   --veil: rgba(10, 10, 10, 0.96);
-  --canvas: #141414;   /* behind the rug */
+  --canvas: #000000;   /* behind the rug */
   --ghost: #ffffff;    /* motif preview outline on the rug */
   color-scheme: dark;
 }
 :root[data-theme="light"] {
   --bg: #f3f1ea;
   --panel: #f3f1ea;
+  --pop: #f3f1ea;
   --line: #d6d2c6;
   --fg: #141414;
   --mute: #8a877e;
@@ -90,40 +93,49 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 /* ---------- info: a stepped pixel panel centred on the carpet ---------- */
 .infoShade { position: absolute; inset: 0; z-index: 29; background: rgba(8, 8, 8, 0.62); }
 .infoShade[hidden] { display: none; }
-.info { position: absolute; z-index: 30; top: 50%; left: calc(var(--rail) + (100% - var(--rail)) / 2); transform: translate(-50%, -50%);
-  width: min(960px, calc(100% - var(--rail) - 2 * var(--gap))); --s: calc(var(--rb) / 2); }
+/* centred in the space right of the toolbar, with the same margin to the toolbar and to the screen edge */
+.info { position: absolute; z-index: 30; top: 50%; --railR: calc(var(--gap) + var(--rb)); --m: calc(2 * var(--gap));
+  left: calc(var(--railR) + (100% - var(--railR)) / 2); transform: translate(-50%, -50%);
+  width: min(900px, calc(100% - var(--railR) - 2 * var(--m))); max-height: calc(100% - 2 * var(--gap)); display: flex; flex-direction: column;
+  --s: calc(var(--rb) / 2); --px: calc(2 * var(--s) + 16px); --aw: calc(100cqi - 2 * var(--px)); container-type: inline-size; }
 .info[hidden] { display: none; }
-.infoBox { position: relative; isolation: isolate; background: var(--line); color: var(--fg); padding: calc(var(--s) + 10px) calc(2 * var(--s) + 12px); text-align: center; max-height: inherit; overflow: auto;
+.infoBox { position: relative; isolation: isolate; background: var(--line); color: var(--fg); padding: calc(var(--s) + 24px) var(--px); text-align: center; min-height: 0; overflow: auto;
+  --f: clamp(16px, min(calc(var(--aw) / 28.5), calc((100dvh - 300px) / 11)), 24px);
   clip-path: polygon(0 calc(4 * var(--s)), var(--s) calc(4 * var(--s)), var(--s) calc(3 * var(--s)), calc(2 * var(--s)) calc(3 * var(--s)), calc(2 * var(--s)) calc(2 * var(--s)), calc(3 * var(--s)) calc(2 * var(--s)), calc(3 * var(--s)) var(--s), calc(4 * var(--s)) var(--s), calc(4 * var(--s)) 0, calc(100% - 4 * var(--s)) 0, calc(100% - 4 * var(--s)) var(--s), calc(100% - 3 * var(--s)) var(--s), calc(100% - 3 * var(--s)) calc(2 * var(--s)), calc(100% - 2 * var(--s)) calc(2 * var(--s)), calc(100% - 2 * var(--s)) calc(3 * var(--s)), calc(100% - var(--s)) calc(3 * var(--s)), calc(100% - var(--s)) calc(4 * var(--s)), 100% calc(4 * var(--s)), 100% calc(100% - 4 * var(--s)), calc(100% - var(--s)) calc(100% - 4 * var(--s)), calc(100% - var(--s)) calc(100% - 3 * var(--s)), calc(100% - 2 * var(--s)) calc(100% - 3 * var(--s)), calc(100% - 2 * var(--s)) calc(100% - 2 * var(--s)), calc(100% - 3 * var(--s)) calc(100% - 2 * var(--s)), calc(100% - 3 * var(--s)) calc(100% - var(--s)), calc(100% - 4 * var(--s)) calc(100% - var(--s)), calc(100% - 4 * var(--s)) 100%, calc(4 * var(--s)) 100%, calc(4 * var(--s)) calc(100% - var(--s)), calc(3 * var(--s)) calc(100% - var(--s)), calc(3 * var(--s)) calc(100% - 2 * var(--s)), calc(2 * var(--s)) calc(100% - 2 * var(--s)), calc(2 * var(--s)) calc(100% - 3 * var(--s)), var(--s) calc(100% - 3 * var(--s)), var(--s) calc(100% - 4 * var(--s)), 0 calc(100% - 4 * var(--s))); }
 /* the border: the box itself is border-coloured; a copy inset 1px on every edge and step carries the dark fill */
-.infoBox::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--panel); clip-path: polygon(1px calc(4 * var(--s) + 1px), calc(var(--s) + 1px) calc(4 * var(--s) + 1px), calc(var(--s) + 1px) calc(3 * var(--s) + 1px), calc(2 * var(--s) + 1px) calc(3 * var(--s) + 1px), calc(2 * var(--s) + 1px) calc(2 * var(--s) + 1px), calc(3 * var(--s) + 1px) calc(2 * var(--s) + 1px), calc(3 * var(--s) + 1px) calc(var(--s) + 1px), calc(4 * var(--s) + 1px) calc(var(--s) + 1px), calc(4 * var(--s) + 1px) 1px, calc(100% - 4 * var(--s) - 1px) 1px, calc(100% - 4 * var(--s) - 1px) calc(var(--s) + 1px), calc(100% - 3 * var(--s) - 1px) calc(var(--s) + 1px), calc(100% - 3 * var(--s) - 1px) calc(2 * var(--s) + 1px), calc(100% - 2 * var(--s) - 1px) calc(2 * var(--s) + 1px), calc(100% - 2 * var(--s) - 1px) calc(3 * var(--s) + 1px), calc(100% - var(--s) - 1px) calc(3 * var(--s) + 1px), calc(100% - var(--s) - 1px) calc(4 * var(--s) + 1px), calc(100% - 1px) calc(4 * var(--s) + 1px), calc(100% - 1px) calc(100% - 4 * var(--s) - 1px), calc(100% - var(--s) - 1px) calc(100% - 4 * var(--s) - 1px), calc(100% - var(--s) - 1px) calc(100% - 3 * var(--s) - 1px), calc(100% - 2 * var(--s) - 1px) calc(100% - 3 * var(--s) - 1px), calc(100% - 2 * var(--s) - 1px) calc(100% - 2 * var(--s) - 1px), calc(100% - 3 * var(--s) - 1px) calc(100% - 2 * var(--s) - 1px), calc(100% - 3 * var(--s) - 1px) calc(100% - var(--s) - 1px), calc(100% - 4 * var(--s) - 1px) calc(100% - var(--s) - 1px), calc(100% - 4 * var(--s) - 1px) calc(100% - 1px), calc(4 * var(--s) + 1px) calc(100% - 1px), calc(4 * var(--s) + 1px) calc(100% - var(--s) - 1px), calc(3 * var(--s) + 1px) calc(100% - var(--s) - 1px), calc(3 * var(--s) + 1px) calc(100% - 2 * var(--s) - 1px), calc(2 * var(--s) + 1px) calc(100% - 2 * var(--s) - 1px), calc(2 * var(--s) + 1px) calc(100% - 3 * var(--s) - 1px), calc(var(--s) + 1px) calc(100% - 3 * var(--s) - 1px), calc(var(--s) + 1px) calc(100% - 4 * var(--s) - 1px), 1px calc(100% - 4 * var(--s) - 1px)); }
-.infoTitle { margin: 0 0 calc(var(--s) + 14px); line-height: 1; font-size: var(--t-xxl); font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); }
-.info dl { margin: 0 auto; width: max-content; max-width: 100%; display: grid; grid-template-columns: auto auto auto auto; gap: 8px 30px; font-size: var(--t-xl); text-align: left; }
+.infoBox::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--pop); clip-path: polygon(1px calc(4 * var(--s) + 1px), calc(var(--s) + 1px) calc(4 * var(--s) + 1px), calc(var(--s) + 1px) calc(3 * var(--s) + 1px), calc(2 * var(--s) + 1px) calc(3 * var(--s) + 1px), calc(2 * var(--s) + 1px) calc(2 * var(--s) + 1px), calc(3 * var(--s) + 1px) calc(2 * var(--s) + 1px), calc(3 * var(--s) + 1px) calc(var(--s) + 1px), calc(4 * var(--s) + 1px) calc(var(--s) + 1px), calc(4 * var(--s) + 1px) 1px, calc(100% - 4 * var(--s) - 1px) 1px, calc(100% - 4 * var(--s) - 1px) calc(var(--s) + 1px), calc(100% - 3 * var(--s) - 1px) calc(var(--s) + 1px), calc(100% - 3 * var(--s) - 1px) calc(2 * var(--s) + 1px), calc(100% - 2 * var(--s) - 1px) calc(2 * var(--s) + 1px), calc(100% - 2 * var(--s) - 1px) calc(3 * var(--s) + 1px), calc(100% - var(--s) - 1px) calc(3 * var(--s) + 1px), calc(100% - var(--s) - 1px) calc(4 * var(--s) + 1px), calc(100% - 1px) calc(4 * var(--s) + 1px), calc(100% - 1px) calc(100% - 4 * var(--s) - 1px), calc(100% - var(--s) - 1px) calc(100% - 4 * var(--s) - 1px), calc(100% - var(--s) - 1px) calc(100% - 3 * var(--s) - 1px), calc(100% - 2 * var(--s) - 1px) calc(100% - 3 * var(--s) - 1px), calc(100% - 2 * var(--s) - 1px) calc(100% - 2 * var(--s) - 1px), calc(100% - 3 * var(--s) - 1px) calc(100% - 2 * var(--s) - 1px), calc(100% - 3 * var(--s) - 1px) calc(100% - var(--s) - 1px), calc(100% - 4 * var(--s) - 1px) calc(100% - var(--s) - 1px), calc(100% - 4 * var(--s) - 1px) calc(100% - 1px), calc(4 * var(--s) + 1px) calc(100% - 1px), calc(4 * var(--s) + 1px) calc(100% - var(--s) - 1px), calc(3 * var(--s) + 1px) calc(100% - var(--s) - 1px), calc(3 * var(--s) + 1px) calc(100% - 2 * var(--s) - 1px), calc(2 * var(--s) + 1px) calc(100% - 2 * var(--s) - 1px), calc(2 * var(--s) + 1px) calc(100% - 3 * var(--s) - 1px), calc(var(--s) + 1px) calc(100% - 3 * var(--s) - 1px), calc(var(--s) + 1px) calc(100% - 4 * var(--s) - 1px), 1px calc(100% - 4 * var(--s) - 1px)); }
+.infoTitle { margin: 0 0 calc(var(--s) + 14px); line-height: 1; font-size: clamp(22px, min(calc(var(--aw) / 7), calc(var(--f) * 1.45)), 36px); font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); }
+/* text scales with the popup's width: four columns while they fit at 18px+, then two, with long descriptions wrapping */
+.info dl { margin: 0 auto; width: max-content; max-width: 100%; display: grid; grid-template-columns: repeat(4, auto); gap: 0.45em 1.1em; line-height: 1.1; font-size: var(--f); text-align: left; }
 .info dt { color: var(--fg); white-space: nowrap; }
-.info dd { margin: 0 14px 0 0; color: var(--mute); white-space: nowrap; }
-.infoBy { margin: calc(var(--s) + 20px) 0 0; line-height: 1; font-size: var(--t-xl); color: var(--fg); }
+.info dd { margin: 0; color: var(--mute); white-space: nowrap; }
+@container (max-width: 640px) {
+  .infoBox { --f: clamp(min(16px, calc(var(--aw) / 9.5)), min(calc(var(--aw) / 14.6), calc((100dvh - 300px) / 22)), 22px); }
+  .info dl { grid-template-columns: auto auto; gap: 0.3em 0.8em; }
+  .infoBy { line-height: 1.15; }
+  .info dd { white-space: normal; }
+  .infoBy span { display: block; }   /* credit on two lines: A Maybe Machine / by Ravi Popat */
+}
+.infoBy { margin: calc(var(--s) + 20px) 0 0; line-height: 1.25; font-size: var(--f); color: var(--fg); }
 .infoBy a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--mute); }
 .infoBy span, .infoBy a { white-space: nowrap; }
 .infoBy a:hover { text-decoration-color: var(--fg); }
 /* the close button sits in the cut-away top-right corner, above the staircase: each step is half a button */
-.infoClose { position: absolute; top: 0; right: 0; width: var(--rb); height: var(--rb); display: grid; place-items: center; padding: 0; border: 1px solid var(--line); background: var(--panel); color: var(--icon, var(--fg)); cursor: pointer; }
+.infoClose { position: absolute; top: 0; right: 0; width: var(--rb); height: var(--rb); display: grid; place-items: center; padding: 0; border: 1px solid var(--line); background: var(--pop); color: var(--icon, var(--fg)); cursor: pointer; }
 .infoClose:hover { background: var(--fg); color: var(--on-fg); }
 .infoClose svg { width: 22.5px; height: 22.5px; }
 @media (max-width: 700px) {
   /* phones: the same margin on all four sides; content centred in the space */
-  .info { position: fixed; inset: 10vw; width: auto; transform: none; display: flex; flex-direction: column; }
+  .info { position: fixed; inset: 10vw; width: auto; max-height: none; transform: none; --px: calc(var(--s) + 14px); }
   .info[hidden] { display: none; }
-  .infoBox { flex: 1; display: flex; flex-direction: column; justify-content: safe center; padding-left: calc(var(--s) + 8px); padding-right: calc(var(--s) + 8px); }
-  .infoTitle { font-size: var(--t-xxl); }
-  .info dl { font-size: var(--t-l); }
-  .info dd { white-space: nowrap; }
-  .info dl { grid-template-columns: auto auto; gap: 8px 16px; }
-  .info dd { margin: 0; }
+  .infoBox { flex: 1; display: flex; flex-direction: column; justify-content: safe center; }
+  .infoBox { padding-top: calc(var(--s) + 10px); padding-bottom: calc(var(--s) + 10px); }
   .infoClose svg { width: 20px; height: 20px; }
 }
 .infoBtn { position: absolute; right: var(--gap); bottom: var(--gap); width: var(--rb); height: var(--rb); display: grid; place-items: center; padding: 0; background: var(--panel); color: var(--fg); border: 1px solid var(--line); cursor: pointer; z-index: 6; }
 .infoBtn .i { font-family: var(--mono); font-size: var(--t-l); letter-spacing: 0.02em; line-height: 1; }
-.infoBtn:hover, .infoBtn[aria-expanded="true"] { color: var(--fg); border-color: var(--fg); }
+.infoBtn:hover { color: var(--fg); border-color: var(--fg); }
+.infoBtn[aria-expanded="true"] { background: var(--fg); color: var(--on-fg); border-color: var(--fg); z-index: 31; }   /* inverted while the popup is open */
 .corner.qm { position: fixed; right: auto; bottom: auto; box-shadow: 0 8px 28px rgba(0,0,0,.5); z-index: 30; }
 .corner { position: absolute; right: 12px; bottom: 12px; display: flex; background: var(--panel); border: 1px solid var(--line); z-index: 6; }
 .corner .rb { width: 38px; height: 38px; border-bottom: 0; }

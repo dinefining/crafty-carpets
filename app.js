@@ -9,8 +9,8 @@
 
   // ---------- state ----------
   const S = {
-    style: 'Anatolian', motif: 'Figure:18', pal: 'Your colours', colors: ['#262626', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
-    repeat: 'single', mirror: 'both', lastMirror: 'both', gap: 0, swap: false, link: false, snap: 'off', k: 1, rot: 0, bg: '#141414', fringe: '#e9dfc9',
+    style: 'Anatolian', motif: 'Figure:18', pal: 'Your colours', colors: ['#151515', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
+    repeat: 'single', mirror: 'both', lastMirror: 'both', gap: 0, swap: false, link: false, snap: 'off', k: 1, rot: 0, bg: '#000000', fringe: '#e9dfc9',
     kw: 81, tool: 'paint', sound: true, frame: 'none', orient: 'v',
     stamps: []
   };
@@ -166,17 +166,25 @@
   const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
   const hash = (x, y) => { let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   let bandCache = null, palRGB = null;
-  function abrash(H) {
-    if (bandCache && bandCache.length === H) return bandCache;
-    const b = new Float32Array(H); let y = 0, s = 7;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-    while (y < H) { const len = 3 + Math.floor(rnd() * 14), f = 1 + (rnd() - 0.6) * 0.1; for (let k = 0; k < len && y < H; k++, y++) b[y] = f; }
+  // soft, patchy colour drift (wool dye lots): two octaves of smooth value noise, no long bands
+  function abrash() {
+    const { W, H } = D;
+    if (bandCache && bandCache.length === W * H) return bandCache;
+    const b = new Float32Array(W * H), sm = t => t * t * (3 - 2 * t);
+    const vn = (x, y, seed) => { const xi = Math.floor(x), yi = Math.floor(y), fx = sm(x - xi), fy = sm(y - yi);
+      const h = (a, c) => hash(a + seed, c - seed);
+      const top = h(xi, yi) + (h(xi + 1, yi) - h(xi, yi)) * fx, bot = h(xi, yi + 1) + (h(xi + 1, yi + 1) - h(xi, yi + 1)) * fx;
+      return top + (bot - top) * fy; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const n = vn(x / 11, y / 11, 17) * 0.65 + vn(x / 4.5, y / 4.5, 91) * 0.35;
+      b[y * W + x] = 1 + (n - 0.5) * 0.09;
+    }
     return (bandCache = b);
   }
   function setPixel(i) {
     const W = D.W, x = i % W, y = (i / W) | 0, role = shown[i], o = i * 4, d = img.data, c = palRGB[role];
     let f = 1 + (hash(x, y) - 0.5) * 0.07;
-    if (role === F || role === BD) f *= S.orient === 'h' ? abrash(D.W)[x] : abrash(D.H)[y];
+    if (role === F || role === BD) f *= abrash()[i];
         d[o] = Math.min(255, c[0] * f); d[o + 1] = Math.min(255, c[1] * f); d[o + 2] = Math.min(255, c[2] * f); d[o + 3] = 255;
   }
   function repaintAll() { palRGB = S.colors.map(hexRgb); for (let i = 0; i < shown.length; i++) setPixel(i); offCtx.putImageData(img, 0, 0); }
@@ -271,9 +279,6 @@
       for (let x = 1; x < W; x++) g2.fillRect(Math.round(ox + x * s), top, 1, hh);
       for (let y = 1; y < H; y++) g2.fillRect(left, Math.round(oy + y * s), ww, 1);
     }
-    const gr = g2.createLinearGradient(0, oy, 0, oy + H * s);
-    gr.addColorStop(0, 'rgba(255,236,205,0.06)'); gr.addColorStop(0.5, 'rgba(255,236,205,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.1)');
-    g2.fillStyle = gr; g2.fillRect(ox, oy, W * s, H * s);
   }
   function placeBadge() {
     const el = $('curMotif'); if (!el) return;
@@ -293,7 +298,7 @@
     for (let y = ((V.oy % g) + g) % g; y < ch; y += g) ctx.fillRect(0, Math.round(y), cw, 1);
   }
   // ---------- light / dark interface ----------
-  const THEME = { canvas: '#141414', ghost: '#ffffff' };
+  const THEME = { canvas: '#000000', ghost: '#ffffff' };
   function readTheme() { const cs = getComputedStyle(document.documentElement); THEME.canvas = cs.getPropertyValue('--canvas').trim() || '#141414'; THEME.ghost = cs.getPropertyValue('--ghost').trim() || '#ffffff'; }
   function setTheme(t, keep) {
     document.documentElement.dataset.theme = t; readTheme();
