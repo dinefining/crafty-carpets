@@ -11,17 +11,22 @@
   const S = {
     style: 'Anatolian', motif: 'Figure:18', pal: 'Your colours', colors: ['#262626', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
     repeat: 'single', mirror: 'both', lastMirror: 'both', gap: 0, swap: false, link: false, snap: 'off', k: 1, rot: 0, bg: '#141414', fringe: '#e9dfc9',
-    kw: 81, tool: 'paint', sound: true, frame: 'none',
+    kw: 81, tool: 'paint', sound: true, frame: 'none', orient: 'v',
     stamps: []
   };
   let gidN = 1;
   const undoStack = [];
-  const ROLE_NAMES = ['Base', 'Band', 'Line', 'Acc A', 'Acc B', 'Acc C'];
+  const ROLE_NAMES = ['Base', 'Band', 'Line', 'Accent A', 'Accent B', 'Accent C'];
+  const ROLE_SHORT = ['Base', 'Band', 'Line', 'A', 'B', 'C'];   // swatch labels
   const SHOWN_ROLES = [F, DK, A1, A2, LT];
 
   const G = { guard: 2, band: T + 2 };
+  // big landscape screens get a horizontal rug (more room to play); phones and portrait screens a vertical one
+  const wideScreen = () => window.innerWidth >= 900 && window.innerWidth > window.innerHeight;
+  S.orient = wideScreen() ? 'h' : 'v';
   function dims() {
-    const W = S.kw; let H = Math.round(W * 1.5); if (H % 2 === 0) H++;
+    let W = S.kw, H = Math.round(W * 1.5); if (H % 2 === 0) H++;
+    if (S.orient === 'h') { const t = W; W = H; H = t; }
     if (S.frame === 'none') return { W, H, f0: 0, inner: 0 };
     return { W, H, f0: G.guard + G.band + 2, inner: G.guard + G.band };
   }
@@ -41,6 +46,38 @@
   // a stamp covers (T·k)² knots; mirrored copies flip their footprint so symmetry stays exact
   const span = k => T * (k || 1);
   const origin = (c, k, flip) => { const n = span(k), h = Math.floor(n / 2); return flip ? c - (n - 1 - h) : c - h; };
+
+  // ---------- quarter-turning the whole rug (when the screen changes shape) ----------
+  // a stamp's (flip, flip, rot) after the picture turns 90° clockwise, found once by comparing knot maps
+  const CW_FLIP = (() => {
+    const at = (fh, fv, rot, u, v) => {
+      let ix = fh ? T - 1 - u : u, iy = fv ? T - 1 - v : v;
+      if (rot === 1) { const t = ix; ix = iy; iy = T - 1 - t; }
+      else if (rot === 2) { ix = T - 1 - ix; iy = T - 1 - iy; }
+      else if (rot === 3) { const t = ix; ix = T - 1 - iy; iy = t; }
+      return iy * T + ix;
+    };
+    const out = {}, same = (a, b, r, fh, fv, rot) => {
+      for (let u = 0; u < T; u++) for (let v = 0; v < T; v++) if (at(a, b, r, u, v) !== at(fh, fv, rot, v, T - 1 - u)) return false;
+      return true;
+    };
+    for (let fh = 0; fh < 2; fh++) for (let fv = 0; fv < 2; fv++) for (let rot = 0; rot < 4; rot++) {
+      let hit = null;
+      for (let a = 0; a < 2 && !hit; a++) for (let b = 0; b < 2 && !hit; b++) for (let r = 0; r < 4 && !hit; r++) if (same(a, b, r, fh, fv, rot)) hit = [a, b, r];
+      out[fh + ',' + fv + ',' + rot] = hit;
+    }
+    return out;
+  })();
+  // turn a list of stamps a quarter clockwise on a W×H rug (it becomes H×W)
+  function stampsCW(list, H) {
+    return list.map(s => {
+      const k = s.k || 1, n = span(k), h = Math.floor(n / 2);
+      const x0 = origin(s.x, k, s.fh), y0 = origin(s.y, k, s.fv);
+      const [fh, fv, rot] = CW_FLIP[(s.fh ? 1 : 0) + ',' + (s.fv ? 1 : 0) + ',' + ((s.rot || 0) & 3)];
+      const nx0 = H - y0 - n, ny0 = x0;
+      return { ...s, fh, fv, rot, x: nx0 + (fh ? n - 1 - h : h), y: ny0 + (fv ? n - 1 - h : h) };
+    });
+  }
 
   // ---------- knot state ----------
   let grid, shown, sheen, img;
@@ -139,7 +176,7 @@
   function setPixel(i) {
     const W = D.W, x = i % W, y = (i / W) | 0, role = shown[i], o = i * 4, d = img.data, c = palRGB[role];
     let f = 1 + (hash(x, y) - 0.5) * 0.07;
-    if (role === F || role === BD) f *= abrash(D.H)[y];
+    if (role === F || role === BD) f *= S.orient === 'h' ? abrash(D.W)[x] : abrash(D.H)[y];
         d[o] = Math.min(255, c[0] * f); d[o + 1] = Math.min(255, c[1] * f); d[o + 2] = Math.min(255, c[2] * f); d[o + 3] = 255;
   }
   function repaintAll() { palRGB = S.colors.map(hexRgb); for (let i = 0; i < shown.length; i++) setPixel(i); offCtx.putImageData(img, 0, 0); }
@@ -172,7 +209,9 @@
   // ---------- view ----------
   const cv = $('cv'), ctx = cv.getContext('2d'), viewEl = $('view');
   const KILIM = 2;
-  const fringe = () => Math.max(4, Math.round(D.H * 0.04));
+  const fringe = () => Math.max(4, Math.round(Math.max(D.W, D.H) * 0.04));
+  // how far the fringe + kilim ends reach past the knotted field, in knots: [sideways, up/down]
+  const ends = () => { const e = fringe() + KILIM; return S.orient === 'h' ? [e, 0] : [0, e]; };
   const V = { s: 4, z: 4, ox: 0, oy: 0, fit: 4 };
   // whole-pixel knots keep edges and grid lines crisp
   const crisp = z => z;
@@ -186,16 +225,16 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   function fitView() {
-    const rows = D.H + 2 * (fringe() + KILIM);
+    const [ex, ey] = ends(), cols = D.W + 2 * ex, rows = D.H + 2 * ey;
     // leave room for the control panel when it is open
     // the toolbar floats over the canvas's left edge; centre the rug in the space beside it
     const L = $('rail').getBoundingClientRect().right - viewEl.getBoundingClientRect().left, uw = cw - L;
     // phones: fill the space beside the toolbar, one gap from the right edge (in line with the i button)
     const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 12, phone = cw <= 700;
-    V.fit = phone ? Math.max(0.5, Math.min((uw - gap) / D.W, (ch - 2 * gap) / rows))
-                  : Math.max(0.5, Math.min((uw - 60) / D.W, (ch - 110) / rows));
+    V.fit = phone ? Math.max(0.5, Math.min((uw - gap) / cols, (ch - 2 * gap) / rows))
+                  : Math.max(0.5, Math.min((uw - 60) / cols, (ch - 110) / rows));
     V.z = V.fit; V.s = V.fit;
-    V.ox = Math.round(L + (uw - (phone ? gap : 0) - D.W * V.s) / 2); V.oy = Math.round((ch - D.H * V.s) / 2);
+    V.ox = Math.round(L + (uw - (phone ? gap : 0) - cols * V.s) / 2 + ex * V.s); V.oy = Math.round((ch - D.H * V.s) / 2);
     draw();
   }
   function zoomAt(px, py, factor) {
@@ -209,12 +248,21 @@
   function paintRug(g2, s, ox, oy, lines) {
     const { W, H } = D, FR = fringe();
     g2.fillStyle = S.fringe || '#e9dfc9';
-    for (let x = 0; x < W; x += 2) {
-      const l1 = (FR - 1 + hash(x, 3) * 1.2) * s, l2 = (FR - 1 + hash(x, 5) * 1.2) * s;
-      g2.fillRect(ox + (x + 0.3) * s, oy - KILIM * s - l1, Math.max(1, s * 0.45), l1 + (H + 2 * KILIM) * s + l2);
+    if (S.orient === 'h') {   // warp runs sideways: fringe and kilim on the left and right ends
+      for (let y = 0; y < H; y += 2) {
+        const l1 = (FR - 1 + hash(y, 3) * 1.2) * s, l2 = (FR - 1 + hash(y, 5) * 1.2) * s;
+        g2.fillRect(ox - KILIM * s - l1, oy + (y + 0.3) * s, l1 + (W + 2 * KILIM) * s + l2, Math.max(1, s * 0.45));
+      }
+      g2.fillRect(ox - KILIM * s, oy, KILIM * s, H * s);
+      g2.fillRect(ox + W * s, oy, KILIM * s, H * s);
+    } else {
+      for (let x = 0; x < W; x += 2) {
+        const l1 = (FR - 1 + hash(x, 3) * 1.2) * s, l2 = (FR - 1 + hash(x, 5) * 1.2) * s;
+        g2.fillRect(ox + (x + 0.3) * s, oy - KILIM * s - l1, Math.max(1, s * 0.45), l1 + (H + 2 * KILIM) * s + l2);
+      }
+      g2.fillRect(ox, oy - KILIM * s, W * s, KILIM * s);
+      g2.fillRect(ox, oy + H * s, W * s, KILIM * s);
     }
-    g2.fillRect(ox, oy - KILIM * s, W * s, KILIM * s);
-    g2.fillRect(ox, oy + H * s, W * s, KILIM * s);
     g2.imageSmoothingEnabled = false;
     g2.drawImage(off, 0, 0, W, H, ox, oy, W * s, H * s);
     if (lines && s >= 4) {
@@ -230,7 +278,7 @@
   function placeBadge() {
     const el = $('curMotif'); if (!el) return;
     // sit level with the rug's top edge (the kilim end), one fringe-gap away from its side
-    const size = 52, gap = Math.max(4, Math.round(1.55 * V.s)), top = V.oy - KILIM * V.s;
+    const size = 52, gap = Math.max(4, Math.round(1.55 * V.s)), top = V.oy - ends()[1] * V.s;
     let x = V.ox - size - gap, y = top;
     if (x < 8) { x = V.ox; y = top - fringe() * V.s - size - gap; }
     el.style.left = Math.round(Math.max(8, Math.min(cw - size - 8, x))) + 'px';
@@ -425,7 +473,7 @@
   function undo() { const s = undoStack.pop(); if (!s) { hint('Nothing to undo.'); return; } redoStack.push(snap()); Object.assign(S, s); refresh(null); }
   function redo() { const s = redoStack.pop(); if (!s) { hint('Nothing to redo.'); return; } undoStack.push(snap()); Object.assign(S, s); refresh(null); }
 
-  function status() { $('st1').textContent = `${tiedTotal.toLocaleString('en')} knots tied · ${S.stamps.length} motifs`; $('sizeTag').textContent = `${D.W} × ${D.H} knots`; $('rugVal').textContent = `${D.W}×${D.H}`; $('tileVal').textContent = S.k + '×'; $('railTile').textContent = S.k + '×'; $('railRug').textContent = D.W; }
+  function status() { $('st1').textContent = `${tiedTotal.toLocaleString('en')} knots tied · ${S.stamps.length} motifs`; $('sizeTag').textContent = `${D.W} × ${D.H} knots`; $('rugVal').textContent = `${D.W}×${D.H}`; $('tileVal').textContent = S.k + 'x'; $('railTile').textContent = S.k + 'x'; $('railRug').textContent = D.W; }
   let hintT;
   function hint(t, sticky) { $('hint').textContent = t; clearTimeout(hintT); if (!sticky) hintT = setTimeout(() => $('hint').textContent = '', 3500); }
 
@@ -597,10 +645,11 @@
     const side = $('side'), open = side.dataset.show !== 'none';
     if (open) {
       if (cw <= 700 && side.dataset.show === 'saved') return;     // phones: the collection just floats over the rug
-      const pw = side.getBoundingClientRect().right - viewEl.getBoundingClientRect().left, x0 = V.ox, x1 = V.ox + D.W * V.s, gap = 24;
+      const ex = ends()[0] * V.s, pw = side.getBoundingClientRect().right - viewEl.getBoundingClientRect().left, x0 = V.ox - ex, x1 = V.ox + D.W * V.s + ex, gap = 24;
       if (x0 >= pw + gap - 1 || x1 <= pw) return;                 // clear of the panel, or already off to the left: leave it
       const room = cw - pw, w = x1 - x0;
-      const target = w + 2 * gap <= room ? Math.round(pw + (room - w) / 2) : pw + gap;
+      if (w + 2 * gap > room) return;                               // too big to sit beside the panel: the panel just floats over it
+      const target = Math.round(pw + (room - w) / 2);
       const dx = target - x0; if (dx <= 0) return;
       NUDGE.dx += dx; panTo(V.ox + dx, () => { NUDGE.ox = V.ox; });
     } else if (NUDGE.dx) {
@@ -613,7 +662,7 @@
   function placeSide() {
     const side = $('side');
     if (side.dataset.show === 'saved') {
-      const paint = document.querySelector('#rail [data-tool="paint"]').getBoundingClientRect(), app = document.querySelector('.app').getBoundingClientRect();
+      const paint = $('gTools').getBoundingClientRect(), app = document.querySelector('.app').getBoundingClientRect();
       side.style.top = Math.round(paint.top - app.top) + 'px';
     } else side.style.top = '';
   }
@@ -631,7 +680,7 @@
   // ---------- touch screens: transform button → rotate / size row (desktop keeps R / T / + / −) ----------
   function openXform() {
     closeFly(); const r = $('bXform').getBoundingClientRect(), el = $('xform');
-    $('xval').textContent = S.k + '×';
+    $('xval').textContent = S.k + 'x';
     el.hidden = false; el.style.left = (r.right + GAP()) + 'px'; el.style.top = r.top + 'px';
     $('bXform').setAttribute('aria-pressed', 'true');
   }
@@ -641,21 +690,25 @@
   $('xform').addEventListener('click', e => {
     const b = e.target.closest('[data-x]'); if (!b) return;
     const x = b.dataset.x;
-    if (x === 'ccw') rotate(-1); else if (x === 'cw') rotate(1); else { setTile(S.k + (x === 'plus' ? 1 : -1)); $('xval').textContent = S.k + '×'; }
+    if (x === 'ccw') rotate(-1); else if (x === 'cw') rotate(1); else { setTile(S.k + (x === 'plus' ? 1 : -1)); $('xval').textContent = S.k + 'x'; }
   });
-  window.addEventListener('resize', () => { if (!$('xform').hidden) openXform(); });
+  // the row belongs to the transform button: gone when the button is (wide screens), and when any other tool is picked
+  window.addEventListener('resize', () => {
+    if ($('xform').hidden) return;
+    if (getComputedStyle($('bXform')).display === 'none') closeXform(); else openXform();
+  });
+  document.addEventListener('pointerdown', e => {
+    if ($('xform').hidden) return;
+    const b = e.target.closest && e.target.closest('#rail button, .infoBtn');
+    if (b && b.id !== 'bXform') closeXform();
+  }, true);
   $('railLib').addEventListener('click', () => {
     { setSide('lib'); const cur = tileEls.get(S.motif); if (cur && $('side').dataset.show === 'lib') cur.scrollIntoView({ block: 'center' }); }
   });
   // one mirror button cycles through its four states
   const MIRRORS = ['none', 'h', 'v', 'both'], MIRROR_NAMES = { none: 'No mirror', h: 'Mirror left–right', v: 'Mirror top–bottom', both: 'Mirror both ways' };
   // mirror icons on a 9×9 knot grid: a block, then its copies across the mirror lines
-  const MIRROR_ICONS = {
-    none: '<rect x="7" y="7" width="10" height="10"/>',
-    v: '<rect x="7" y="3.5" width="10" height="5"/><rect x="7" y="15.5" width="10" height="5"/><path d="M2.5 12h19" stroke-dasharray="0.1 3"/>',
-    h: '<rect x="3.5" y="7" width="5" height="10"/><rect x="15.5" y="7" width="5" height="10"/><path d="M12 2.5v19" stroke-dasharray="0.1 3"/>',
-    both: '<rect x="3.5" y="3.5" width="5" height="5"/><rect x="15.5" y="3.5" width="5" height="5"/><rect x="3.5" y="15.5" width="5" height="5"/><rect x="15.5" y="15.5" width="5" height="5"/><path d="M2.5 12h19M12 2.5v19" stroke-dasharray="0.1 3"/>'
-  };
+  const MIRROR_ICONS = { none: '<path d="M0 0h15v1h-15zM0 1h1v1h-1zM14 1h1v1h-1zM0 2h1v1h-1zM14 2h1v1h-1zM0 3h1v1h-1zM14 3h1v1h-1zM0 4h1v1h-1zM14 4h1v1h-1zM0 5h1v1h-1zM5 5h5v1h-5zM14 5h1v1h-1zM0 6h1v1h-1zM5 6h1v1h-1zM9 6h1v1h-1zM14 6h1v1h-1zM0 7h1v1h-1zM5 7h1v1h-1zM9 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM5 8h1v1h-1zM9 8h1v1h-1zM14 8h1v1h-1zM0 9h1v1h-1zM5 9h5v1h-5zM14 9h1v1h-1zM0 10h1v1h-1zM14 10h1v1h-1zM0 11h1v1h-1zM14 11h1v1h-1zM0 12h1v1h-1zM14 12h1v1h-1zM0 13h1v1h-1zM14 13h1v1h-1zM0 14h15v1h-15z"/>', h: '<path d="M0 0h6v1h-6zM7 0h1v1h-1zM9 0h6v1h-6zM0 1h1v1h-1zM5 1h1v1h-1zM9 1h1v1h-1zM14 1h1v1h-1zM0 2h1v1h-1zM5 2h1v1h-1zM7 2h1v1h-1zM9 2h1v1h-1zM14 2h1v1h-1zM0 3h1v1h-1zM5 3h1v1h-1zM9 3h1v1h-1zM14 3h1v1h-1zM0 4h1v1h-1zM5 4h1v1h-1zM7 4h1v1h-1zM9 4h1v1h-1zM14 4h1v1h-1zM0 5h1v1h-1zM5 5h1v1h-1zM9 5h1v1h-1zM14 5h1v1h-1zM0 6h1v1h-1zM5 6h1v1h-1zM7 6h1v1h-1zM9 6h1v1h-1zM14 6h1v1h-1zM0 7h1v1h-1zM5 7h1v1h-1zM9 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM5 8h1v1h-1zM7 8h1v1h-1zM9 8h1v1h-1zM14 8h1v1h-1zM0 9h1v1h-1zM5 9h1v1h-1zM9 9h1v1h-1zM14 9h1v1h-1zM0 10h1v1h-1zM5 10h1v1h-1zM7 10h1v1h-1zM9 10h1v1h-1zM14 10h1v1h-1zM0 11h1v1h-1zM5 11h1v1h-1zM9 11h1v1h-1zM14 11h1v1h-1zM0 12h1v1h-1zM5 12h1v1h-1zM7 12h1v1h-1zM9 12h1v1h-1zM14 12h1v1h-1zM0 13h1v1h-1zM5 13h1v1h-1zM9 13h1v1h-1zM14 13h1v1h-1zM0 14h6v1h-6zM7 14h1v1h-1zM9 14h6v1h-6z"/>', v: '<path d="M0 0h15v1h-15zM0 1h1v1h-1zM14 1h1v1h-1zM0 2h1v1h-1zM14 2h1v1h-1zM0 3h1v1h-1zM14 3h1v1h-1zM0 4h1v1h-1zM14 4h1v1h-1zM0 5h15v1h-15zM0 7h1v1h-1zM2 7h1v1h-1zM4 7h1v1h-1zM6 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM0 9h15v1h-15zM0 10h1v1h-1zM14 10h1v1h-1zM0 11h1v1h-1zM14 11h1v1h-1zM0 12h1v1h-1zM14 12h1v1h-1zM0 13h1v1h-1zM14 13h1v1h-1zM0 14h15v1h-15z"/>', both: '<path d="M0 0h6v1h-6zM7 0h1v1h-1zM9 0h6v1h-6zM0 1h1v1h-1zM5 1h1v1h-1zM9 1h1v1h-1zM14 1h1v1h-1zM0 2h1v1h-1zM5 2h1v1h-1zM7 2h1v1h-1zM9 2h1v1h-1zM14 2h1v1h-1zM0 3h1v1h-1zM5 3h1v1h-1zM9 3h1v1h-1zM14 3h1v1h-1zM0 4h1v1h-1zM5 4h1v1h-1zM7 4h1v1h-1zM9 4h1v1h-1zM14 4h1v1h-1zM0 5h6v1h-6zM9 5h6v1h-6zM7 6h1v1h-1zM0 7h1v1h-1zM2 7h1v1h-1zM4 7h1v1h-1zM6 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM7 8h1v1h-1zM0 9h6v1h-6zM9 9h6v1h-6zM0 10h1v1h-1zM5 10h1v1h-1zM7 10h1v1h-1zM9 10h1v1h-1zM14 10h1v1h-1zM0 11h1v1h-1zM5 11h1v1h-1zM9 11h1v1h-1zM14 11h1v1h-1zM0 12h1v1h-1zM5 12h1v1h-1zM7 12h1v1h-1zM9 12h1v1h-1zM14 12h1v1h-1zM0 13h1v1h-1zM5 13h1v1h-1zM9 13h1v1h-1zM14 13h1v1h-1zM0 14h6v1h-6zM7 14h1v1h-1zM9 14h6v1h-6z"/>' };
   function drawMirrorIcon() {
     const m = S.mirror;
     $('mirrorIcon').innerHTML = MIRROR_ICONS[m];
@@ -711,7 +764,7 @@
       el.appendChild(b);
       const f = document.createElement('button');
       f.type = 'button'; f.className = 'swatch'; f.dataset.role = 'fringe'; f.setAttribute('aria-expanded', 'false');
-      f.innerHTML = '<span class="chip"></span><span>Fringe</span>'; f.setAttribute('aria-label', 'Fringe colour');
+      f.innerHTML = '<span class="chip"></span><span>Ends</span>'; f.setAttribute('aria-label', 'Ends colour (fringe)');
       f.addEventListener('click', e => { e.stopPropagation(); openPicker(FRINGE, f); });
       el.appendChild(f);
     }
@@ -720,7 +773,7 @@
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'swatch'; b.dataset.role = r; b.setAttribute('aria-expanded', 'false');
       b.innerHTML = '<span class="chip"></span><span></span>';
-      b.lastChild.textContent = ROLE_NAMES[r];
+      b.lastChild.textContent = ROLE_SHORT[r];
       b.setAttribute('aria-label', ROLE_NAMES[r] + ' colour');
       b.addEventListener('click', e => { e.stopPropagation(); openPicker(r, b); });
       el.appendChild(b);
@@ -771,7 +824,7 @@
     closePicker();
     Object.assign(PK, hex2hsv(getCol(role)), { role, btn });
     btn.setAttribute('aria-expanded', 'true');
-    $('pkName').textContent = role === BG ? 'Background' : role === FRINGE ? 'Fringe' : ROLE_NAMES[role]; $('pkHex').value = getCol(role).toUpperCase();
+    $('pkName').textContent = role === BG ? 'Background' : role === FRINGE ? 'Ends' : ROLE_NAMES[role]; $('pkHex').value = getCol(role).toUpperCase();
     pk.hidden = false;
     const r = btn.getBoundingClientRect();
     const fr = $('fly').hidden ? null : $('fly').getBoundingClientRect();
@@ -862,13 +915,13 @@
 
   // ---------- export: copy, or save as PNG / JPEG ----------
   function renderExport() {
-    const c = Math.max(4, Math.min(14, Math.floor(1400 / D.W)));
-    const FR = fringe(), rows = D.H + 2 * (FR + KILIM), m = 70;
+    const c = Math.max(4, Math.min(14, Math.floor(1400 / Math.min(D.W, D.H))));
+    const [ex, ey] = ends(), m = 70;
     const oc = document.createElement('canvas');
-    oc.width = D.W * c + m * 2; oc.height = rows * c + m * 2;
+    oc.width = (D.W + 2 * ex) * c + m * 2; oc.height = (D.H + 2 * ey) * c + m * 2;
     const g2 = oc.getContext('2d');
     g2.fillStyle = S.bg || THEME.canvas; g2.fillRect(0, 0, oc.width, oc.height);
-    paintRug(g2, c, m, m + (FR + KILIM) * c);
+    paintRug(g2, c, m + ex * c, m + ey * c);
     return oc;
   }
   const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('encode')), type, q));
@@ -923,25 +976,28 @@
   const lsRead = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } };
   const lsWrite = list => { try { localStorage.setItem(LS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } };
   function rugThumb() {
-    const c = 2, FR = fringe(), rows = D.H + 2 * (FR + KILIM), m = 6;
-    const oc = document.createElement('canvas'); oc.width = D.W * c + m * 2; oc.height = rows * c + m * 2;
+    const c = 2, [ex, ey] = ends(), m = 6;
+    const oc = document.createElement('canvas'); oc.width = (D.W + 2 * ex) * c + m * 2; oc.height = (D.H + 2 * ey) * c + m * 2;
     const g2 = oc.getContext('2d'); g2.fillStyle = S.bg || THEME.canvas; g2.fillRect(0, 0, oc.width, oc.height);
-    paintRug(g2, c, m, m + (FR + KILIM) * c);
+    paintRug(g2, c, m + ex * c, m + ey * c);
     return oc.toDataURL('image/jpeg', 0.82);
   }
-  const rugData = () => ({ bg: S.bg, fringe: S.fringe, kw: S.kw, mirror: S.mirror, pal: S.pal, colors: S.colors.slice(), stamps: S.stamps.map(s => ({ ...s })), thumb: rugThumb(), savedAt: Date.now() });
+  const rugData = () => ({ bg: S.bg, fringe: S.fringe, kw: S.kw, orient: S.orient, mirror: S.mirror, pal: S.pal, colors: S.colors.slice(), stamps: S.stamps.map(s => ({ ...s })), thumb: rugThumb(), savedAt: Date.now() });
   function renderColl() {
     const el = $('coll'); el.textContent = '';
     $('saveNow').firstElementChild.textContent = XS.curId ? 'Save changes' : 'Save Carpet';
     $('saveCopy').hidden = !XS.curId;
     if (!XS.ready) { el.innerHTML = '<div class="empty">Loading…</div>'; return; }
-    if (!XS.rugs.length) { el.innerHTML = `<div class="empty"><b>Create a collection</b>${XS.local ? 'Saved locally in your browser' : 'Saved privately to your account'}</div>`; return; }
+    if (!XS.rugs.length) { el.innerHTML = `<div class="empty">${XS.local ? 'Saved locally in your browser' : 'Saved privately to your account'}</div>`; return; }
     for (const r of XS.rugs.slice().reverse()) {
-      const b = document.createElement('div'); b.className = 'rug'; b.tabIndex = 0; b.setAttribute('role', 'button');
+      const b = document.createElement('div'); b.className = S.orient === 'h' ? 'rug wide' : 'rug'; b.tabIndex = 0; b.setAttribute('role', 'button');
       const when = new Date(r.savedAt || 0).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       b.title = 'Open · saved ' + when; b.setAttribute('aria-label', 'Open rug saved ' + when);
       if (r.id === XS.curId) b.setAttribute('aria-current', 'true');
-      const im = document.createElement('img'); im.alt = ''; im.src = r.thumb || ''; b.appendChild(im);
+      const im = document.createElement('img'); im.alt = ''; b.appendChild(im);
+      // every saved rug is shown in this screen's shape: turned a quarter if it was saved the other way
+      const savedAs = r.orient === 'h' ? 'h' : 'v';
+      if (savedAs === S.orient || !r.thumb) im.src = r.thumb || ''; else turnedThumb(im, r, S.orient === 'v');
       const x = document.createElement('button'); x.type = 'button'; x.className = 'del'; x.setAttribute('aria-label', 'Delete this rug'); x.title = 'Delete'; x.textContent = '×';
       // two-step delete: first click arms it, second click deletes (dialogs are blocked inside the page)
       x.addEventListener('click', ev => {
@@ -956,8 +1012,21 @@
       el.appendChild(b);
     }
   }
+  const TURNED = new Map();
+  function turnedThumb(im, r, cw) {
+    const key = (r.id || '') + ':' + (r.savedAt || 0) + ':' + cw;
+    if (TURNED.has(key)) { im.src = TURNED.get(key); return; }
+    const src = new Image();
+    src.onload = () => {
+      const c = document.createElement('canvas'); c.width = src.naturalHeight; c.height = src.naturalWidth;
+      const g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(cw ? Math.PI / 2 : -Math.PI / 2);
+      g.drawImage(src, -src.naturalWidth / 2, -src.naturalHeight / 2);
+      const url = c.toDataURL('image/jpeg', 0.85); TURNED.set(key, url); im.src = url;
+    };
+    src.src = r.thumb;
+  }
   function scrollCollEnd() { requestAnimationFrame(() => { const el = $('coll'); el.scrollTop = el.scrollHeight; }); }
-  function setRugs(list) { XS.rugs = list.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)); XS.ready = true; renderColl(); scrollCollEnd(); }
+  function setRugs(list) { XS.rugs = list.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)); XS.ready = true; $('bSaved').classList.toggle('has', XS.rugs.length > 0); renderColl(); scrollCollEnd(); }
   function note(text) { const n = $('collNote'); n.textContent = text || ''; n.hidden = !text; }
   async function initCollection() {
     let db = null, user = null;
@@ -994,10 +1063,12 @@
     if (!r || !Array.isArray(r.stamps)) return;
     if (r.bg) S.bg = r.bg;
     if (r.fringe) S.fringe = r.fringe;
-    S.kw = r.kw || S.kw; S.mirror = r.mirror || S.mirror; S.pal = r.pal || 'Your colours';
+    S.kw = r.kw || S.kw; S.orient = r.orient === 'h' ? 'h' : 'v'; S.mirror = r.mirror || S.mirror; S.pal = r.pal || 'Your colours';
+    D = dims();
     if (Array.isArray(r.colors) && r.colors.length === S.colors.length) S.colors = r.colors.slice();
     S.stamps = r.stamps.filter(s => LIB[s.m]).map(s => ({ ...s }));
     gidN = S.stamps.reduce((m, s) => Math.max(m, (s.gid || 0) + 1), 1);
+    turnTo(wideScreen() ? 'h' : 'v', false);
     undoStack.length = 0; redoStack.length = 0;
     XS.curId = r.id; closeFly(); if (window.matchMedia('(max-width: 700px)').matches) setSide('saved');
     resetRug(true); applyColors(); syncAll();
@@ -1029,6 +1100,24 @@
     syncAll(); fitView(); status();
   }
   function seedRug() {}
+  // the rug follows the screen: horizontal on wide screens, vertical on phones / portrait — turning a painted rug a quarter, history and all
+  function turnStamps(list, want) {
+    let H = D.H; const times = want === 'v' ? 1 : 3;   // h→v clockwise, v→h counter-clockwise (three clockwise turns)
+    let W = D.W;
+    for (let i = 0; i < times; i++) { list = stampsCW(list, H); const t = W; W = H; H = t; }
+    return list;
+  }
+  const swapMirror = m => m === 'h' ? 'v' : m === 'v' ? 'h' : m;
+  function turnTo(want, withHistory) {
+    if (want === S.orient) return false;
+    S.stamps = turnStamps(S.stamps, want);
+    if (withHistory) for (const st of [undoStack, redoStack]) for (const sn of st) if (sn.stamps) sn.stamps = turnStamps(sn.stamps, want);
+    S.mirror = swapMirror(S.mirror); S.lastMirror = swapMirror(S.lastMirror);
+    S.orient = want; D = dims();
+    return true;
+  }
+  function reorient() { if (!turnTo(wideScreen() ? 'h' : 'v', true)) return false; resetRug(); if (XS.ready) renderColl(); return true; }
+  window.addEventListener('resize', () => { clearTimeout(reorient._t); reorient._t = setTimeout(reorient, 200); });
   new ResizeObserver(() => { const keep = Math.abs(V.s - V.fit) < 1e-6; resize(); if (keep || !grid) fitView(); else draw(); }).observe(viewEl);
   renderLib(); renderPals(); renderMine();
   allocKnots(); palRGB = S.colors.map(hexRgb);

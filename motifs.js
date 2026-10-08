@@ -29,7 +29,22 @@ const Motifs = (() => {
     'Bauhaus':         ['#f1ede4', '#151515', '#000000', '#d13b26', '#2850c8', '#f2c12e'],
     'Art Deco':        ['#1c3b3a', '#c8a24a', '#0b1414', '#e9d8a6', '#c4614a', '#f6efdc'],
     'Op Art':          ['#f4f4f0', '#111111', '#000000', '#e23b2e', '#111111', '#ffffff'],
-    'Mid-century':     ['#e8dcc4', '#2f5d62', '#1d1d1b', '#d9822b', '#2f5d62', '#f7f1e3']
+    'Mid-century':     ['#e8dcc4', '#2f5d62', '#1d1d1b', '#d9822b', '#2f5d62', '#f7f1e3'],
+    'Suzani':          ['#efe3c8', '#b0302b', '#1e1714', '#2b4f7a', '#d9a63e', '#f7efdc'],
+    'Ikat':            ['#2a2f5b', '#c2452f', '#120f1d', '#e4b44a', '#3c8a7f', '#f2e8d4'],
+    'Ottoman':         ['#7d1f22', '#c99a3a', '#1a0f0f', '#1f4f5c', '#e9d9b5', '#f6eedc'],
+    'Sami':            ['#1f3f8a', '#c7322b', '#0f1630', '#f2c23a', '#2d7a4f', '#f4efe4'],
+    'Navajo':          ['#c94a2a', '#2a2420', '#141010', '#e9dcc4', '#7a7570', '#f6efe2'],
+    'Moroccan blue':   ['#24508f', '#e8dcc0', '#0f1a33', '#d8a33b', '#c4492f', '#f7f1e3'],
+    'Sage & rust':     ['#8fa48a', '#b4552e', '#2b2a24', '#e3c78e', '#4c6157', '#f1ebdc'],
+    'Saffron':         ['#e2a12f', '#7a2e22', '#2a1a12', '#2d5a6e', '#c25b2c', '#f6ecd4'],
+    'Midnight':        ['#141a2e', '#3b4a7a', '#0a0d17', '#d8b25a', '#9a3d3d', '#e9e2d0'],
+    'Terracotta':      ['#b85c3c', '#e6cfa8', '#2e1c16', '#3e5f63', '#d9933a', '#f5ebd8'],
+    'Pastel':          ['#e9dfcf', '#b9c9d8', '#4a4540', '#e7a99a', '#a9c7a6', '#fbf6ee'],
+    'Mono warm':       ['#2b2724', '#4a433d', '#141210', '#bfb3a2', '#7b6f62', '#ece4d6'],
+    'Indigo':          ['#1d2a4f', '#33497d', '#0b1126', '#e8e0cc', '#8fa9c9', '#f4f0e6'],
+    'Forest':          ['#2f4a35', '#a8462c', '#121a14', '#d9b562', '#6f8f5a', '#efe6cf'],
+    'Rose':            ['#c97f86', '#5a2c35', '#2a1418', '#e9c9a8', '#6f8f8a', '#f8eee6']
   };
 
 
