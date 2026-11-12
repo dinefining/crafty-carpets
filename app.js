@@ -11,7 +11,7 @@
   const S = {
     style: 'Anatolian', motif: 'Figure:18', pal: 'Your colours', colors: ['#151515', '#e2ac45', '#e2dbcb', '#2c6b8b', '#6c8d39', '#c5432c'],
     repeat: 'single', mirror: 'both', lastMirror: 'both', gap: 0, swap: false, link: false, snap: 'off', k: 1, rot: 0, bg: '#000000', fringe: '#e9dfc9',
-    kw: 81, tool: 'paint', sound: true, frame: 'none', orient: 'v',
+    kw: 81, tool: 'paint', lastDraw: 'paint', inks: [], knotRole: DK, knotSize: 1, eraseMode: 'motif', eraseSize: 1, sound: true, frame: 'none', orient: 'v',
     stamps: []
   };
   let gidN = 1;
@@ -71,6 +71,7 @@
   // turn a list of stamps a quarter clockwise on a W×H rug (it becomes H×W)
   function stampsCW(list, H) {
     return list.map(s => {
+      if (s.kn) return { ...s, x: H - 1 - s.y, y: s.x };
       const k = s.k || 1, n = span(k), h = Math.floor(n / 2);
       const x0 = origin(s.x, k, s.fh), y0 = origin(s.y, k, s.fv);
       const [fh, fv, rot] = CW_FLIP[(s.fh ? 1 : 0) + ',' + (s.fv ? 1 : 0) + ',' + ((s.rot || 0) & 3)];
@@ -86,14 +87,23 @@
   function allocKnots() {
     D = dims();
     const n = D.W * D.H;
-    grid = new Uint8Array(n); shown = new Uint8Array(n); sheen = new Float32Array(n);
+    // each knot holds a role (low 3 bits) and an ink (the rest): ink 0 follows the current colours, ink n the colours paint n was laid in
+    grid = new Uint16Array(n); shown = new Uint16Array(n); sheen = new Float32Array(n);
     off.width = D.W; off.height = D.H; img = offCtx.createImageData(D.W, D.H);
     queue = []; qi = 0; pops = []; bandCache = null;
   }
 
   // ---------- build the design grid ----------
+  // paint keeps the colours it was laid in: each stroke gets an ink, a saved copy of the colours at that moment
+  function curInk() {
+    const key = S.colors.join();
+    let i = S.inks.findIndex(a => a.join() === key);
+    if (i < 0) { S.inks.push(S.colors.slice()); i = S.inks.length - 1; }
+    return i + 1;
+  }
   function build() {
     const { W, H, f0, inner } = D, framed = S.frame !== 'none';
+    for (const s of S.stamps) if (s.ink === undefined) s.ink = curInk();
     const g = grid;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       let c = F;
@@ -114,19 +124,21 @@
       for (let k = 0; k < G.band; k++) { put(cx + k, cy, DK); put(cx + k, cy + G.band - 1, DK); put(cx, cy + k, DK); put(cx + G.band - 1, cy + k, DK); }
     for (const s of S.stamps) {
       const ok = s.zone === 'frame' ? inBand : inField;
+      const ink = (s.ink || 0) << 3;
+      if (s.kn) { if (ok(s.x, s.y)) g[s.y * W + s.x] = s.r | ink; continue; }
       const k = s.k || 1, n = span(k), x0 = origin(s.x, k, s.fh), y0 = origin(s.y, k, s.fv);
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
         const gx = x0 + x, gy = y0 + y;
         if (!ok(gx, gy)) continue;
         const r = motifAt(s.m, Math.floor(x / k), Math.floor(y / k), s.fh, s.fv, s.rot, s.sw);
-        if (r >= 0) g[gy * W + gx] = r;
+        if (r >= 0) g[gy * W + gx] = r | ink;
       }
     }
     // link neighbouring motifs: a Gabriel graph (no third motif between a pair), drawn as stepped lines behind the motifs
     if (S.link) {
       const pf = (x, y, r) => { if (inField(x, y) && g[y * W + x] === F) { g[y * W + x] = r; return true; } return false; };
       const pts = [], seenP = new Set();
-      for (const s of S.stamps) if (s.zone === 'field') { const k = s.x + ',' + s.y; if (!seenP.has(k)) { seenP.add(k); pts.push(s); } }
+      for (const s of S.stamps) if (s.zone === 'field' && !s.kn) { const k = s.x + ',' + s.y; if (!seenP.has(k)) { seenP.add(k); pts.push(s); } }
       const MIN2 = 10 * 10, MAX2 = 30 * 30;
       for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
         let A = pts[a], B = pts[b];
@@ -181,13 +193,16 @@
     }
     return (bandCache = b);
   }
+  let inkRGB = [];
   function setPixel(i) {
-    const W = D.W, x = i % W, y = (i / W) | 0, role = shown[i], o = i * 4, d = img.data, c = palRGB[role];
+    const W = D.W, x = i % W, y = (i / W) | 0, code = shown[i], role = code & 7, ink = code >> 3, o = i * 4, d = img.data;
+    const c = ink && S.inks[ink - 1] ? (inkRGB[ink - 1] || (inkRGB[ink - 1] = S.inks[ink - 1].map(hexRgb)))[role] : palRGB[role];
     let f = 1 + (hash(x, y) - 0.5) * 0.07;
     if (role === F || role === BD) f *= abrash()[i];
         d[o] = Math.min(255, c[0] * f); d[o + 1] = Math.min(255, c[1] * f); d[o + 2] = Math.min(255, c[2] * f); d[o + 3] = 255;
   }
-  function repaintAll() { palRGB = S.colors.map(hexRgb); for (let i = 0; i < shown.length; i++) setPixel(i); offCtx.putImageData(img, 0, 0); }
+  let offVer = 0;
+  function repaintAll() { palRGB = S.colors.map(hexRgb); inkRGB = []; for (let i = 0; i < shown.length; i++) setPixel(i); offCtx.putImageData(img, 0, 0); offVer++; }
   const cssOf = i => `rgb(${img.data[i * 4]},${img.data[i * 4 + 1]},${img.data[i * 4 + 2]})`;
 
   // ---------- sound: a soft woolen tick as knots tie ----------
@@ -221,8 +236,9 @@
   // how far the fringe + kilim ends reach past the knotted field, in knots: [sideways, up/down]
   const ends = () => { const e = fringe() + KILIM; return S.orient === 'h' ? [e, 0] : [0, e]; };
   const V = { s: 4, z: 4, ox: 0, oy: 0, fit: 4 };
-  // whole-pixel knots keep edges and grid lines crisp
-  const crisp = z => z;
+  // whole-pixel knots: each knot spans a whole number of screen pixels, so the stitch pattern repeats exactly with the knots
+  // (otherwise it drifts a fraction of a pixel per knot and shows as faint lines across the carpet when zoomed out)
+  const crisp = (z, down) => { const d = window.devicePixelRatio || 1; return Math.max(1, (down ? Math.floor : Math.round)(z * d)) / d; };
   let ghost = null, cw = 0, ch = 0;
 
   function resize() {
@@ -241,44 +257,116 @@
     const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 12, phone = cw <= 700;
     V.fit = phone ? Math.max(0.5, Math.min((uw - gap) / cols, (ch - 2 * gap) / rows))
                   : Math.max(0.5, Math.min((uw - 60) / cols, (ch - 110) / rows));
-    V.z = V.fit; V.s = V.fit;
+    V.z = V.fit; V.s = crisp(V.fit, true);
     V.ox = Math.round(L + (uw - (phone ? gap : 0) - cols * V.s) / 2 + ex * V.s); V.oy = Math.round((ch - D.H * V.s) / 2);
     draw();
   }
   function zoomAt(px, py, factor) {
     V.z = Math.max(V.fit * 0.4, Math.min(V.fit * 14, V.z * factor));
-    const ns = V.z;
+    const ns = crisp(V.z);
+    if (ns === V.s) return;
     const k = ns / V.s;
     V.ox = px - (px - V.ox) * k; V.oy = py - (py - V.oy) * k; V.s = ns;
     draw();
   }
 
+  // ---------- weave: every knot drawn as plain woven cloth ----------
+  // a tile two knots across is shaded once per knot size and stitch, and repeated as a pattern
+  const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // fibres: fine lines along a strand, plus a little speckle. Their light half lifts dark yarn, their dark half (a little stronger) cuts into light yarn
+  const fibre = (t, px, py) => { const w = Math.sin(t * 40); return (w > 0 ? 0.1 : 0.17) * w + 0.035 * (hash(px, py) - 0.5); };
+  // three stitches to choose from (the button by the mirror cycles them). Each gives, for one point of a knot
+  // (u, v ∈ 0–1; kx, ky which knot of the tile), a light (+) or shade (−) amount
+  const GAP_DARK = 0.92;   // how dark the gaps between strands are
+
+  // woven cloth: n threads each way per knot, going over and under. Threads running along the warp are shaded by `dark`.
+  // These look the same whichever way the warp runs, so they never turn
+  const CLOTH = { plain: { n: 4, dark: 0.1, flat: 0.14 } };
+  // the lines inside every stitch: twisted yarn, a dark groove with a light ridge beside it, the same for every stitch type.
+  // Each knot gets its own twist, phase and tone, so no two stitches are quite alike
+  const yarnLine = (across, along, kx, ky) => {
+    const r1 = hash(kx * 7 + 1, ky * 13 + 5), r2 = hash(kx * 3 + 11, ky * 5 + 2), r3 = hash(kx * 17 + 3, ky * 11 + 7);
+    const t = (across + (0.33 + (r1 - 0.5) * 0.36) * along) / (0.09 * (0.88 + 0.24 * r3)) + r2 * 3;   // straight lines; only their angle, spacing and position change from knot to knot
+    const line = d => { const f = d - Math.floor(d), g = Math.min(f, 1 - f); return 1 - sm(0.0, 0.46, g); };   // soft, blurred edges
+    return -0.26 * line(t) + 0.1 * line(t + 0.5) + (r3 - 0.5) * 0.06;
+  };
+  function stitchCloth(n, dark) {
+    return (u, v, px, py, kx, ky) => {
+      const U = u * n, V = v * n, i = Math.floor(U), j = Math.floor(V), fx = U - i, fy = V - j, weft = ((i + j) & 1) === 1;
+      const a = weft ? fy : fx, b = weft ? fx : fy, e = Math.abs(2 * a - 1), f = Math.abs(2 * b - 1);
+      // a round thread: lit along its middle, shaded to its sides, dipping under its neighbours at its ends
+      let m = (0.42 + 0.72 * Math.sqrt(Math.max(0, 1 - e * e))) * (Math.sqrt(Math.max(0, 1 - f ** 4)) * 0.55 + 0.45);
+      if (!weft) m *= 1 - dark;
+      const k = m < 1 ? -(1 - m) : (m - 1) * 0.25;   // the lit middle of a thread only a little lighter, so threads don't read as white squares
+      const tone = (hash(kx * 7 + 1, ky * 13 + 5) - 0.5) * 0.1 + (hash(kx * n + i, ky * n + j) - 0.5) * 0.06;   // each knot, and each thread, a shade apart
+      return k + tone + 0.9 * yarnLine((a - 0.5) / n + (hash(i + kx * n, j + ky * n + 3) - 0.5) * 0.02, b / n, kx * n + i, ky * n + j) + 0.04 * (hash(px, py) - 0.5);   // each thread has the same twisted lines as the other stitches
+    };
+  }
+  S.weave = 'plain';   // the carpet is always plain woven cloth
+  const STITCH = { plain: stitchCloth(4, 0.1) };
+  const weaveCache = new Map();
+  const SHADE = 0.67;   // how far the deepest gap darkens its yarn: about a third of the colour is left
+  // inv: the same stitch with light and shade swapped (not used by the current stitches, kept for trying)
+  const isLight = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b > 140;
+  function weaveSprite(P, horiz, inv) {
+    const key = S.weave + P + (horiz ? 'h' : 'v') + (inv ? 'i' : ''), stitch = STITCH[S.weave]; if (weaveCache.has(key)) return weaveCache.get(key);
+    // a tile of K×K knots, each a little different. Small tiles are drawn with several samples per pixel and averaged,
+    // so fine lines blend evenly as you zoom out instead of popping in and out at certain sizes
+    const K = P <= 12 ? 8 : P <= 32 ? 6 : P <= 64 ? 4 : 2, N = K * P, ss = P < 10 ? 4 : P < 24 ? 3 : P < 48 ? 2 : 1;
+    const c = document.createElement('canvas'); c.width = c.height = N; c.knots = K;
+    // two layers: highlights laid on top, and shade that darkens the yarn's own colour (multiplied), so a gap under cream yarn is a
+    // dark warm grey, under red a deep maroon — never the same black everywhere
+    const dk = document.createElement('canvas'); dk.width = dk.height = N; c.shade = dk;
+    const g = c.getContext('2d'), im = g.createImageData(N, N), d = im.data, gd = dk.getContext('2d'), imd = gd.createImageData(N, N), e = imd.data;
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      let sum = 0;
+      for (let sy = 0; sy < ss; sy++) for (let sx = 0; sx < ss; sx++) {
+        let X = (px + (sx + 0.5) / ss) / P, Y = (py + (sy + 0.5) / ss) / P;
+        if (horiz && !CLOTH[S.weave]) { const t = X; X = Y; Y = K - t; }   // the warp runs sideways: turn the stitches with it (cloth needs no turning)
+        sum += stitch(X - Math.floor(X), Y - Math.floor(Y), px, py, Math.floor(X), Math.floor(Y));
+      }
+      const k = (inv ? -1 : 1) * sum / (ss * ss), o = (py * N + px) * 4;
+      if (k > 0) { d[o] = d[o + 1] = d[o + 2] = 255; d[o + 3] = Math.round(Math.min(1, k) * 255); }
+      e[o] = e[o + 1] = e[o + 2] = Math.round(255 * (1 - SHADE * Math.min(1, Math.max(0, -k)))); e[o + 3] = 255;
+    }
+    g.putImageData(im, 0, 0); gd.putImageData(imd, 0, 0); weaveCache.set(key, c); return c;
+  }
+  // fill a rectangle with stitches, lined up with the carpet's knots (ox, oy is the field's corner)
+  function weave(g2, s, ox, oy, x, y, w, h, inv) {
+    const dpr = g2.getTransform().a || 1, P = Math.round(s * dpr);
+    if (P < 4) {   // under 4 screen pixels a knot can't hold a stitch: plain knots (cloth keeps its overall shade, so zooming out doesn't brighten it)
+      if (CLOTH[S.weave]) { g2.fillStyle = `rgba(0,0,0,${CLOTH[S.weave].flat})`; g2.fillRect(x, y, w, h); }
+      return;
+    }
+    const sp = weaveSprite(P, S.orient === 'h', inv), m = new DOMMatrix().translate(ox, oy).scale(s / P);
+    const shade = g2.createPattern(sp.shade, 'repeat'), lit = g2.createPattern(sp, 'repeat');
+    shade.setTransform(m); lit.setTransform(m);
+    g2.save(); g2.globalCompositeOperation = 'multiply'; g2.fillStyle = shade; g2.fillRect(x, y, w, h); g2.restore();
+    g2.fillStyle = lit; g2.fillRect(x, y, w, h);
+  }
   function paintRug(g2, s, ox, oy, lines) {
     const { W, H } = D, FR = fringe();
     g2.fillStyle = S.fringe || '#e9dfc9';
-    if (S.orient === 'h') {   // warp runs sideways: fringe and kilim on the left and right ends
+    const strands = [], bands = [], hz = S.orient === 'h';
+    if (hz) {   // warp runs sideways: fringe and kilim on the left and right ends
       for (let y = 0; y < H; y += 2) {
-        const l1 = (FR - 1 + hash(y, 3) * 1.2) * s, l2 = (FR - 1 + hash(y, 5) * 1.2) * s;
-        g2.fillRect(ox - KILIM * s - l1, oy + (y + 0.3) * s, l1 + (W + 2 * KILIM) * s + l2, Math.max(1, s * 0.45));
+        const l1 = (FR - 1 + hash(y, 3) * 1.2) * s, l2 = (FR - 1 + hash(y, 5) * 1.2) * s, t = Math.max(1, s * 0.45), yy = oy + (y + 0.3) * s;
+        strands.push([ox - KILIM * s - l1, yy, l1, t], [ox + (W + KILIM) * s, yy, l2, t]);
       }
-      g2.fillRect(ox - KILIM * s, oy, KILIM * s, H * s);
-      g2.fillRect(ox + W * s, oy, KILIM * s, H * s);
+      bands.push([ox - KILIM * s, oy, KILIM * s, H * s], [ox + W * s, oy, KILIM * s, H * s]);
     } else {
       for (let x = 0; x < W; x += 2) {
-        const l1 = (FR - 1 + hash(x, 3) * 1.2) * s, l2 = (FR - 1 + hash(x, 5) * 1.2) * s;
-        g2.fillRect(ox + (x + 0.3) * s, oy - KILIM * s - l1, Math.max(1, s * 0.45), l1 + (H + 2 * KILIM) * s + l2);
+        const l1 = (FR - 1 + hash(x, 3) * 1.2) * s, l2 = (FR - 1 + hash(x, 5) * 1.2) * s, t = Math.max(1, s * 0.45), xx = ox + (x + 0.3) * s;
+        strands.push([xx, oy - KILIM * s - l1, t, l1], [xx, oy + (H + KILIM) * s, t, l2]);
       }
-      g2.fillRect(ox, oy - KILIM * s, W * s, KILIM * s);
-      g2.fillRect(ox, oy + H * s, W * s, KILIM * s);
+      bands.push([ox, oy - KILIM * s, W * s, KILIM * s], [ox, oy + H * s, W * s, KILIM * s]);
     }
+    for (const r of strands) g2.fillRect(r[0], r[1], r[2], r[3]);
+    for (const r of bands) g2.fillRect(r[0], r[1], r[2], r[3]);
     g2.imageSmoothingEnabled = false;
     g2.drawImage(off, 0, 0, W, H, ox, oy, W * s, H * s);
-    if (lines && s >= 4) {
-      g2.fillStyle = s >= 7 ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.13)';
-      const top = Math.round(oy), left = Math.round(ox), hh = Math.round(oy + H * s) - top, ww = Math.round(ox + W * s) - left;
-      for (let x = 1; x < W; x++) g2.fillRect(Math.round(ox + x * s), top, 1, hh);
-      for (let y = 1; y < H; y++) g2.fillRect(left, Math.round(oy + y * s), ww, 1);
-    }
+    weave(g2, s, ox, oy, ox, oy, W * s, H * s);
+    for (const [x, y, w, h] of bands) weave(g2, s, ox, oy, x, y, w, h);   // the end bands are woven too: an edging row in the Ends colour
   }
   function placeBadge() {
     const el = $('curMotif'); if (!el) return;
@@ -328,9 +416,18 @@
   function drawGhost() {
     const { W, H, f0, inner } = D;
     ctx.strokeStyle = THEME.ghost;
+    if (S.tool === 'erase' && S.eraseMode === 'knot') { for (const [x, y] of knotSpots(ghost.x, ghost.y)) rectK(x, y, 1, 1, 1.5); return; }
     if (S.tool === 'erase') {
-      const s = stampAt(ghost.x, ghost.y, ghost.zone);
-      if (s) S.stamps.filter(t => t.gid === s.gid).forEach(t => rectK(origin(t.x, t.k, t.fh), origin(t.y, t.k, t.fv), span(t.k), span(t.k), 1.5));
+      const s = pickAt(ghost.x, ghost.y, ghost.zone);
+      if (s) S.stamps.filter(t => t.gid === s.gid).forEach(t => { const [x0, y0, n] = foot(t); rectK(x0, y0, n, n, 1.5); });
+      return;
+    }
+    if (S.tool === 'knot') {
+      const spots = knotSpots(ghost.x, ghost.y);
+      ctx.globalAlpha = 0.85; ctx.fillStyle = S.colors[S.knotRole];
+      for (const [x, y] of spots) ctx.fillRect(V.ox + x * V.s, V.oy + y * V.s, V.s, V.s);
+      ctx.globalAlpha = 1;
+      for (const [x, y] of spots) rectK(x, y, 1, 1, 1);
       return;
     }
     const sp = snapPoint(ghost.x, ghost.y, ghost.zone);
@@ -412,7 +509,49 @@
     if (e < G.guard) return 'edge';
     return e < inner + 2 ? 'frame' : 'field';
   }
-  function stampAt(x, y, zone) { for (let i = S.stamps.length - 1; i >= 0; i--) { const s = S.stamps[i]; if ((!zone || s.zone === zone)) { const x0 = origin(s.x, s.k, s.fh), y0 = origin(s.y, s.k, s.fv), n = span(s.k); if (x >= x0 && y >= y0 && x < x0 + n && y < y0 + n) return s; } } return null; }
+  // what an entry covers: a stamp its (T·k)² square, a pencil knot just its own cell
+  const foot = s => s.kn ? [s.x, s.y, 1] : [origin(s.x, s.k, s.fh), origin(s.y, s.k, s.fv), span(s.k)];
+  // brush-erased spots are base-coloured knots laid over a motif: they're holes, not things you can pick up and remove
+  const isPatch = s => s.kn && s.r === F && s.ink === 0;
+  // the motif or stroke a whole-motif click would remove: erased spots are looked through, so it never brings what you erased back
+  function pickAt(x, y, zone) { for (let i = S.stamps.length - 1; i >= 0; i--) { const s = S.stamps[i]; if (isPatch(s) || (zone && s.zone !== zone)) continue; const [x0, y0, n] = foot(s); if (x >= x0 && y >= y0 && x < x0 + n && y < y0 + n) return s; } return null; }
+  function removeGroup(gid) {
+    S.stamps = S.stamps.filter(t => t.gid !== gid);
+    S.stamps = S.stamps.filter(t => !isPatch(t) || pickAt(t.x, t.y, 'field'));   // erased spots with nothing left under them are dropped
+  }
+  function stampAt(x, y, zone) { for (let i = S.stamps.length - 1; i >= 0; i--) { const s = S.stamps[i]; if (!zone || s.zone === zone) { const [x0, y0, n] = foot(s); if (x >= x0 && y >= y0 && x < x0 + n && y < y0 + n) return s; } } return null; }
+  // ---------- pencil: single knots, kept in the same list as the stamps so later paint covers earlier paint ----------
+  function knotSpots(x0, y0) {
+    const { W, H } = D, out = new Map(), add = (a, b) => { if (zoneAt(a, b) === 'field') out.set(a + ',' + b, [a, b]); };
+    const n = S.tool === 'erase' ? S.eraseSize : S.knotSize, lo = -Math.floor((n - 1) / 2);   // a square brush of n × n knots around the pointer
+    for (let dy = lo; dy < lo + n; dy++) for (let dx = lo; dx < lo + n; dx++) {
+      const x = x0 + dx, y = y0 + dy;
+      add(x, y);
+      if (S.mirror === 'h' || S.mirror === 'both') add(W - 1 - x, y);
+      if (S.mirror === 'v' || S.mirror === 'both') add(x, H - 1 - y);
+      if (S.mirror === 'both') add(W - 1 - x, H - 1 - y);
+    }
+    return [...out.values()];
+  }
+  // every knot on the way from one point to the next, so a quick drag leaves no gaps
+  function lineCells(x0, y0, x1, y1) {
+    const out = [], dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) { out.push([x0, y0]); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+    return out;
+  }
+  // paint (role ≥ 0) or erase (role < 0) knots and their mirrored copies
+  function knotStroke(cells, role, gid) {
+    const spots = new Map();
+    for (const [x, y] of cells) for (const [a, b] of knotSpots(x, y)) spots.set(a + ',' + b, [a, b]);
+    if (!spots.size) return false;
+    S.stamps = S.stamps.filter(t => !(t.kn && spots.has(t.x + ',' + t.y)));
+    for (const [x, y] of spots.values()) {
+      if (role >= 0) S.stamps.push({ kn: 1, x, y, r: role, gid, zone: 'field' });
+      else if (stampAt(x, y, 'field')) S.stamps.push({ kn: 1, x, y, r: F, gid, zone: 'field', ink: 0 });   // a motif underneath: knot that spot back to base
+    }
+    return true;
+  }
   function placeGroup(x, y, zone) { const sp = snapPoint(x, y, zone), gid = gidN++; for (const p of placements(sp.x, sp.y, zone)) S.stamps.push({ m: S.motif, x: p.x, y: p.y, fh: p.fh, fv: p.fv, rot: S.rot || 0, sw: S.swap, gid, zone, k: S.k }); return sp; }
   function runBorder(id, sw) {
     if (S.frame === 'none') return;
@@ -437,7 +576,9 @@
     for (let i = 0; i < grid.length; i++) {
       if (grid[i] === shown[i]) continue;
       const x = i % W, y = (i / W) | 0;
-      add.push({ i, t: now + Math.min(650, Math.hypot(x - ox, y - oy) * 9) + hash(x, y) * 30 });
+      // the knot under the pointer ties at once; the rest ripple out from it, quicker than before
+      const d = Math.hypot(x - ox, y - oy);
+      add.push({ i, t: d < 1.5 ? now : now + Math.min(400, d * 5) + hash(x, y) * 15 });
     }
     if (!add.length) return;
     queue = queue.slice(qi).concat(add).sort((a, b) => a.t - b.t); qi = 0;
@@ -446,21 +587,21 @@
   function processQueue(now) {
     let n = 0; const tally = [0, 0, 0, 0, 0, 0];
     while (qi < queue.length && queue[qi].t <= now) {
-      const { i } = queue[qi++], role = grid[i];
-      if (shown[i] === role) continue;
-      shown[i] = role; setPixel(i);
+      const { i } = queue[qi++], code = grid[i];
+      if (shown[i] === code) continue;
+      shown[i] = code; setPixel(i);
       pops.push({ i, t: now, c: cssOf(i) });
-      tally[role]++; n++; tiedTotal++;
+      tally[code & 7]++; n++; tiedTotal++;
     }
     if (qi >= queue.length) { queue = []; qi = 0; }
     if (n) {
-      offCtx.putImageData(img, 0, 0);
+      offCtx.putImageData(img, 0, 0); offVer++;
       let best = 0; for (let r = 1; r < 6; r++) if (tally[r] > tally[best]) best = r;
       knotTick(best, n);
       status();
     }
   }
-  function refresh(origin) { build(); schedule(origin); draw(); status(); }
+  function refresh(origin) { build(); schedule(origin); processQueue(performance.now()); draw(); status(); }   // tie what's due now, in this same frame
 
   let rafOn = false;
   function kick() { if (!rafOn) { rafOn = true; requestAnimationFrame(loop); } }
@@ -478,7 +619,7 @@
   function undo() { const s = undoStack.pop(); if (!s) { hint('Nothing to undo.'); return; } redoStack.push(snap()); Object.assign(S, s); refresh(null); }
   function redo() { const s = redoStack.pop(); if (!s) { hint('Nothing to redo.'); return; } undoStack.push(snap()); Object.assign(S, s); refresh(null); }
 
-  function status() { $('st1').textContent = `${tiedTotal.toLocaleString('en')} knots tied · ${S.stamps.length} motifs`; $('sizeTag').textContent = `${D.W} × ${D.H} knots`; $('rugVal').textContent = `${D.W}×${D.H}`; $('tileVal').textContent = S.k + 'x'; $('railTile').textContent = S.k + 'x'; $('railRug').textContent = D.W; }
+  function status() { $('st1').textContent = `${tiedTotal.toLocaleString('en')} knots tied · ${S.stamps.filter(t => !t.kn).length} motifs`; $('sizeTag').textContent = `${D.W} × ${D.H} knots`; $('rugVal').textContent = `${D.W}×${D.H}`; $('tileVal').textContent = S.k + 'x'; $('railTile').textContent = S.k + 'x'; $('railRug').textContent = D.W; }
   let hintT;
   function hint(t, sticky) { $('hint').textContent = t; clearTimeout(hintT); if (!sticky) hintT = setTimeout(() => $('hint').textContent = '', 3500); }
 
@@ -489,6 +630,7 @@
   const knotF = p => ({ x: (p.x - V.ox) / V.s, y: (p.y - V.oy) / V.s });
   const knot = p => { const k = knotF(p); return { x: Math.floor(k.x), y: Math.floor(k.y) }; };
   cv.addEventListener('pointerdown', e => {
+    if (knotRowOpen) { knotRowOpen = false; syncKnotRow(); }   // drawing folds the colour row away
     e.preventDefault();
     ensureAudio();
     cv.setPointerCapture(e.pointerId);
@@ -501,9 +643,13 @@
     const k = knot(p), z = zoneAt(k.x, k.y);
     if (e.button === 1 || e.button === 2 || spaceDown || !z || z === 'edge') { mode = { type: 'pan', x: p.x, y: p.y }; cv.style.cursor = 'grabbing'; return; }
     pushUndo();
-    if (S.tool === 'erase') {
-      const s = stampAt(k.x, k.y, z);
-      if (s) { S.stamps = S.stamps.filter(t => t.gid !== s.gid); hint('Erased that motif and its copies.'); } else undoStack.pop();
+    if (S.tool === 'knot' || (S.tool === 'erase' && S.eraseMode === 'knot')) {
+      const role = S.tool === 'knot' ? S.knotRole : -1, gid = gidN++;
+      if (!knotStroke([[k.x, k.y]], role, gid)) undoStack.pop();
+      mode = { type: 'knot', role, gid, x: k.x, y: k.y };
+    } else if (S.tool === 'erase') {
+      const s = pickAt(k.x, k.y, z);
+      if (s) { removeGroup(s.gid); hint('Erased that motif and its copies.'); } else undoStack.pop();
       mode = { type: 'erase', zone: z };
     } else {
       const sp = placeGroup(k.x, k.y, z);
@@ -523,7 +669,11 @@
     }
     if (mode && mode.type === 'pan') { V.ox += Math.round(p.x - mode.x); V.oy += Math.round(p.y - mode.y); mode.x = p.x; mode.y = p.y; draw(); return; }
     const k = knot(p), z = zoneAt(k.x, k.y);
-    if (mode && mode.type === 'erase') { const s = z ? stampAt(k.x, k.y, z) : null; if (s) { S.stamps = S.stamps.filter(t => t.gid !== s.gid); refresh(k); } return; }
+    if (mode && mode.type === 'knot') {
+      if (k.x !== mode.x || k.y !== mode.y) { knotStroke(lineCells(mode.x, mode.y, k.x, k.y).slice(1), mode.role, mode.gid); mode.x = k.x; mode.y = k.y; refresh(k); }
+      return;
+    }
+    if (mode && mode.type === 'erase') { const s = z ? pickAt(k.x, k.y, z) : null; if (s) { removeGroup(s.gid); refresh(k); } return; }
     if (mode && mode.type === 'paint') {
       if (mode.free && z === mode.zone) {
         const sp = snapPoint(k.x, k.y, z);
@@ -537,12 +687,13 @@
     cv.style.cursor = spaceDown ? 'grab' : ghost ? 'crosshair' : 'grab';
     if (!prev && !ghost) return;
     if (prev && ghost && prev.x === ghost.x && prev.y === ghost.y && prev.zone === ghost.zone) return;
-    if (ghost) hint(S.tool === 'erase' ? 'Click a motif to erase it and its copies' : ghost.zone === 'frame' ? 'Painting on the frame' : 'Click or drag to paint', true);
+    if (ghost) hint(S.tool === 'knot' ? 'Click or drag to paint knots' : S.tool === 'erase' ? (S.eraseMode === 'knot' ? 'Drag to erase knots · tap the eraser for whole motifs' : 'Click a motif or stroke to remove it and its copies · tap the eraser for a brush') : ghost.zone === 'frame' ? 'Painting on the frame' : 'Click or drag to paint', true);
     else hint('');
     if (!rafOn) draw();
   });
   const up = e => {
     pts.delete(e.pointerId); if (pts.size === 0) { mode = null; cv.style.cursor = ''; }
+    if (e.pointerType === 'mouse' && e.type === 'pointerup') { const k = knot(local(e)), z = zoneAt(k.x, k.y); ghost = (z && z !== 'edge') ? { x: k.x, y: k.y, zone: z } : null; if (!rafOn) draw(); }
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
@@ -550,6 +701,11 @@
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => { e.preventDefault(); const p = local(e); zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018))); }, { passive: false });
   document.addEventListener('keydown', e => {
+    if (!$('medPop').hidden) {
+      if (e.key === 'Escape' && pk.hidden) closeMed();
+      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? medStep(MED.redo, MED.undo) : medStep(MED.undo, MED.redo); }
+      return;
+    }
     if (e.code === 'Space' && e.target === document.body) { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
@@ -558,9 +714,11 @@
     if (e.metaKey || e.ctrlKey || e.altKey || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range')) return;
     const cyc = (key, list) => { S[key] = list[(list.indexOf(S[key]) + 1) % list.length]; syncAll(); if (!rafOn) draw(); };
     const k = e.key.toLowerCase();
-    if (k === 'e') { S.tool = S.tool === 'erase' ? 'paint' : 'erase'; syncAll(); }
+    if (k === 'e') { if (S.tool === 'erase') toggleErase(); else setTool('erase'); }
+    else if (k === 's') setTool('paint');
+    else if (k === 'p') setTool('knot');
     else if (k === 'm') cycleMirror(e.shiftKey ? -1 : 1);
-    else if (k === '-' || k === '=' || k === '+') { setTile(S.k + (k === '-' ? -1 : 1)); }
+    else if (k === '-' || k === '=' || k === '+') { if (S.tool === 'knot') setKnotSize(S.knotSize + (k === '-' ? -1 : 1)); else if (S.tool === 'erase' && S.eraseMode === 'knot') setEraseSize(S.eraseSize + (k === '-' ? -1 : 1)); else setTile(S.k + (k === '-' ? -1 : 1)); }
     else if (k === 'r') { rotate(1); }
     else if (k === 't') { rotate(-1); }
     else if (k === '[' || k === ']') {
@@ -572,7 +730,7 @@
 
   // ---------- controls ----------
   const pressed = (sel, test) => document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', test(b) ? 'true' : 'false'));
-  function applyColors() { repaintAll(); renderLib(); renderMine(); renderPals(); draw(); }
+  function applyColors() { repaintAll(); renderLib(); renderMine(); syncKnotRow(); draw(); }
   // one assorted pool of every motif, shuffled once (seeded so the order is stable), hand-drawn ones spread through it
   const POOL = (() => { const all = Object.values(LIB); let a = 20261001; const r = () => { a = (a * 1103515245 + 12345) % 2147483648; return a / 2147483648; };
     for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; } return all; })();
@@ -585,18 +743,24 @@
   }
   function selectMotif(id, scroll) {
     const prev = tileEls.get(S.motif); if (prev) prev.setAttribute('aria-pressed', 'false');
-    S.motif = id; if (S.tool !== 'paint') S.tool = 'paint';
+    S.motif = id; S.tool = S.lastDraw = 'paint';
     const cur = tileEls.get(id); if (cur) { cur.setAttribute('aria-pressed', 'true'); if (scroll) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
     syncAll(); paintCurrent(); if (!rafOn) draw();
   }
   function paintCurrent() { paintTile($('railCur'), S.motif, S.rot || 0); }
-  const FILTERS = ['All', 'Square', 'Round', 'Cross', 'Triangle', 'Misc', 'Mono'];
+  const FILTERS = ['All', 'Square', 'Round', 'Cross', 'Triangle', 'Misc', 'Mono', 'Custom'];
+  let libFilter = 'All';
   function renderLib() {
     const el = $('lib');
     if (!tileEls.size) {
+      const add = document.createElement('button');
+      add.type = 'button'; add.className = 'tile add'; add.id = 'libAdd'; add.title = 'New motif'; add.setAttribute('aria-label', 'New motif');
+      add.dataset.tags = 'custom'; add.dataset.only = '1'; add.hidden = true;
+      add.innerHTML = PLUS_SVG;
+      el.appendChild(add);
       for (const m of POOL) {
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'tile'; b.title = m.n; b.setAttribute('aria-label', m.n); b.dataset.id = m.id;
+        b.type = 'button'; b.className = 'tile'; b.title = m.n + ' · hold to remix'; b.setAttribute('aria-label', m.n); b.dataset.id = m.id;
         b.setAttribute('aria-pressed', m.id === S.motif ? 'true' : 'false');
         const c = document.createElement('canvas'); c.width = T + 2; c.height = T + 2; b.appendChild(c);
         b.dataset.tags = [m.shape === 'diamond' ? 'square' : m.shape, m.mono ? 'mono' : ''].join(' ');
@@ -611,18 +775,39 @@
         tabs.appendChild(t);
       }
       el.addEventListener('click', e => {
+        if (HOLD.fired) { HOLD.fired = false; return; }
+        const del = e.target.closest('.tdel');
+        if (del) { deleteCustom(del.parentElement.dataset.id); return; }   // one tap deletes; carpets that use the motif keep their copy
         const b = e.target.closest('.tile'); if (!b) return;
+        if (b.id === 'libAdd') { openMed(null, null); return; }
         selectMotif(b.dataset.id);
         if ($('side').dataset.show === 'lib') setSide('lib');   // close the library once a motif is picked
       });
       $('mcount').textContent = `${POOL.length} motifs`;
+      // hold a motif (or right-click it) to remix it: your own ones open to edit, the rest as a new copy
+      const holdEnd = () => { clearTimeout(HOLD.t); HOLD.t = 0; };
+      el.addEventListener('pointerdown', e => {
+        HOLD.fired = false;
+        const b = e.target.closest('.tile'); if (!b || b.id === 'libAdd' || e.target.closest('.tdel') || e.button > 0) return;
+        HOLD.x = e.clientX; HOLD.y = e.clientY; holdEnd();
+        HOLD.t = setTimeout(() => { HOLD.t = 0; HOLD.fired = true; remix(b.dataset.id); }, 450);
+      });
+      el.addEventListener('pointermove', e => { if (HOLD.t && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 8) holdEnd(); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => el.addEventListener(n, holdEnd));
+      el.addEventListener('contextmenu', e => {
+        const b = e.target.closest('.tile'); e.preventDefault();
+        if (!b || b.id === 'libAdd' || HOLD.fired || !$('medPop').hidden) return;
+        remix(b.dataset.id);
+      });
     }
     for (const [id, b] of tileEls) paintTile(b.firstChild, id);
     paintCurrent();
   }
   function setFilter(name) {
-    let n = 0;
-    for (const [, b] of tileEls) { const show = name === 'All' || b.dataset.tags.split(' ').includes(name.toLowerCase()); b.hidden = !show; if (show) n++; }
+    let n = 0; libFilter = name;
+    const tagged = b => b.dataset.tags.split(' ').includes(name.toLowerCase());
+    $('libAdd').hidden = !tagged($('libAdd'));
+    for (const [, b] of tileEls) { const show = name === 'All' || tagged(b); b.hidden = !show; if (show) n++; }
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-pressed', t.dataset.f === name ? 'true' : 'false'));
     $('mcount').textContent = `${n} motifs`;
     $('lib').scrollTop = 0; $('lib').scrollLeft = 0;
@@ -681,10 +866,11 @@
     $('railLib').setAttribute('aria-pressed', side.dataset.show === 'lib' ? 'true' : 'false');
     $('bSaved').setAttribute('aria-pressed', side.dataset.show === 'saved' ? 'true' : 'false');
     if (side.dataset.show === 'saved') { renderColl(); scrollCollEnd(); }
+    syncKnotRow();
   }
   // ---------- touch screens: transform button → rotate / size row (desktop keeps R / T / + / −) ----------
   function openXform() {
-    closeFly(); const r = $('bXform').getBoundingClientRect(), el = $('xform');
+    closeFly(); if (S.tool !== 'paint') setTool('paint'); const r = $('bXform').getBoundingClientRect(), el = $('xform');
     $('xval').textContent = S.k + 'x';
     el.hidden = false; el.style.left = (r.right + GAP()) + 'px'; el.style.top = r.top + 'px';
     $('bXform').setAttribute('aria-pressed', 'true');
@@ -740,6 +926,7 @@
     if (fly.hidden) return;
     fly.hidden = true; if (flyBtn) flyBtn.setAttribute('aria-expanded', 'false'); flyBtn = null;
     closePicker();
+    syncKnotRow();
   }
   function openFly(name, btn) {
     if (!$('xform').hidden) closeXform();
@@ -749,6 +936,7 @@
     const r = btn.getBoundingClientRect();
     fly.style.left = (r.right + GAP()) + 'px';
     fly.style.top = Math.max(GAP(), Math.min(window.innerHeight - fly.offsetHeight - GAP(), r.top)) + 'px';
+    syncKnotRow();
   }
   document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openFly(b.dataset.open, b); }));
   document.addEventListener('pointerdown', e => {
@@ -767,13 +955,13 @@
       b.innerHTML = '<span class="chip"></span><span>BG</span>'; b.setAttribute('aria-label', 'Background colour');
       b.addEventListener('click', e => { e.stopPropagation(); openPicker(BG, b); });
       el.appendChild(b);
+      const d = document.createElement('span'); d.className = 'swsep'; d.setAttribute('aria-hidden', 'true'); el.appendChild(d);   // the background on its own; ends belong with the carpet's colours
       const f = document.createElement('button');
       f.type = 'button'; f.className = 'swatch'; f.dataset.role = 'fringe'; f.setAttribute('aria-expanded', 'false');
       f.innerHTML = '<span class="chip"></span><span>Ends</span>'; f.setAttribute('aria-label', 'Ends colour (fringe)');
       f.addEventListener('click', e => { e.stopPropagation(); openPicker(FRINGE, f); });
       el.appendChild(f);
     }
-    if (el.children.length === 2) { const d = document.createElement('span'); d.className = 'swsep'; d.setAttribute('aria-hidden', 'true'); el.appendChild(d); }
     if (el.children.length === 3) for (const r of SHOWN_ROLES) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'swatch'; b.dataset.role = r; b.setAttribute('aria-expanded', 'false');
@@ -784,9 +972,8 @@
       el.appendChild(b);
     }
     el.children[0].querySelector('.chip').style.background = S.bg;
-    el.children[1].querySelector('.chip').style.background = S.fringe;
+    el.children[2].querySelector('.chip').style.background = S.fringe;
     SHOWN_ROLES.forEach((r, n) => { el.children[n + 3].querySelector('.chip').style.background = S.colors[r]; });
-    $('palName').textContent = S.pal;
   }
   // ---------- colour picker (HSV square + hue strip + hex) ----------
   const PK = { role: -1, h: 0, s: 0, v: 0, btn: null };
@@ -820,8 +1007,10 @@
     if (PK.role === BG) { S.bg = hex; draw(); if (PK.btn) PK.btn.querySelector('.chip').style.background = hex; return; }
     S.colors[PK.role] = hex; S.pal = 'Your colours';
     palRGB = S.colors.map(hexRgb); repaintAll(); draw();
+    if (!$('medPop').hidden) syncMed();
+    syncKnotRow();
     if (PK.btn) PK.btn.querySelector('.chip').style.background = hex;
-    pressed('.pal', () => false);
+    renderMine();   // the palette and the pencil show the same Line colour, whichever one changed it
     if (!live) renderLib();
   }
   function openPicker(role, btn) {
@@ -836,7 +1025,8 @@
     const roomRight = fr && fr.right + GAP() + pk.offsetWidth < window.innerWidth;
     pk.style.left = (roomRight ? fr.right + GAP() : Math.min(window.innerWidth - pk.offsetWidth - 8, r.left)) + 'px';
     if (roomRight) { pk.style.width = fr.width + 'px'; pk.style.height = fr.height + 'px'; } else { pk.style.width = ''; pk.style.height = ''; }
-    pk.style.top = Math.max(6, Math.min(window.innerHeight - pk.offsetHeight - 8, roomRight ? fr.top : r.bottom + 6)) + 'px';
+    const below = r.bottom + 6 + pk.offsetHeight <= window.innerHeight - 8;   // no room under the button: open above it rather than over it
+    pk.style.top = Math.max(6, Math.min(window.innerHeight - pk.offsetHeight - 8, roomRight ? fr.top : below ? r.bottom + 6 : r.top - pk.offsetHeight - 6)) + 'px';
     // match the canvases' pixel size to their laid-out size so the marks stay crisp
     for (const c of [sv, hu]) { const b = c.getBoundingClientRect(); c.width = Math.max(40, Math.round(b.width - 2)); c.height = Math.max(10, Math.round(b.height - 2)); }
     drawPicker();
@@ -863,26 +1053,78 @@
   });
   document.addEventListener('pointerdown', e => { if (!pk.hidden && !pk.contains(e.target) && !(PK.btn && PK.btn.contains(e.target))) closePicker(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
-  function renderPals() {
-    const el = $('pals'); el.innerHTML = '';
-    for (const name in PALETTES) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'pal'; b.setAttribute('aria-pressed', name === S.pal ? 'true' : 'false');
-      b.innerHTML = `<span class="sw">${SHOWN_ROLES.map(r => `<i style="background:${PALETTES[name][r]}"></i>`).join('')}</span><span></span>`;
-      b.title = name;
-      b.lastChild.textContent = name;
-      b.addEventListener('click', () => { S.pal = name; S.colors = PALETTES[name].slice(); applyColors(); });
-      el.appendChild(b);
-    }
+  // randomise: a fresh, matched set for everything except the background. A base, a line that stands out from it,
+  // three accents spread around the colour wheel, and ends close to the line. The whole carpet takes the new colours
+  function randomColours() {
+    const R = Math.random, hsl = (h, sat, l) => { h = ((h % 360) + 360) % 360; const a = sat * Math.min(l, 1 - l), f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join(''); };
+    const h = R() * 360, dark = R() < 0.6, spread = [[120, 240], [30, 60], [150, 210], [90, 180]][Math.floor(R() * 4)];
+    const base = dark ? hsl(h, 0.2 + R() * 0.35, 0.1 + R() * 0.12) : hsl(h, 0.2 + R() * 0.4, 0.78 + R() * 0.1);
+    const line = dark ? hsl(h + 20 + R() * 40, 0.15 + R() * 0.3, 0.82 + R() * 0.1) : hsl(h + 180 + R() * 40 - 20, 0.3 + R() * 0.4, 0.14 + R() * 0.12);
+    const acc = k => hsl(h + [0, spread[0], spread[1]][k] + R() * 30 - 15, 0.4 + R() * 0.35, 0.38 + R() * 0.2);
+    const a1 = acc(0), a2 = acc(1), a3 = acc(2);
+    S.colors[F] = base; S.colors[DK] = line; S.colors[A1] = a1; S.colors[A2] = a2; S.colors[LT] = a3; S.colors[BD] = a2;
+    S.fringe = dark ? hsl(h + 30, 0.12 + R() * 0.15, 0.8 + R() * 0.1) : hsl(h + 30, 0.15 + R() * 0.2, 0.86 + R() * 0.08);
+    S.pal = 'Your colours'; S.inks = S.inks.map(() => S.colors.slice());
+    applyColors(); if (!$('medPop').hidden) syncMed();
   }
+  $('randomBtn').addEventListener('click', e => { e.stopPropagation(); closePicker(); randomColours(); });
+  // the pencil's colours slide out beside it while the pencil is the tool and nothing else is open
+  let knotRowOpen = false;
+  function syncKnotRow() {
+    const row = $('knotRow'), btn = document.querySelector('[data-tool="knot"]');
+    S.knotRole = DK;   // the pencil always paints in the Line colour
+    row.querySelectorAll('.chipb').forEach(b => { b.firstElementChild.style.background = S.colors[DK]; });
+    const dot = document.querySelector('[data-tool="knot"] .tooldot'); if (dot) dot.style.background = S.colors[S.knotRole];
+    const show = knotRowOpen && S.tool === 'knot' && $('side').dataset.show === 'none' && fly.hidden && $('infoPop').hidden && $('medPop').hidden;
+    const free = $('side').dataset.show === 'none' && fly.hidden && $('infoPop').hidden && $('medPop').hidden;
+    const place = (row, btn) => { const g = btn.closest('.grp').getBoundingClientRect(), r = btn.getBoundingClientRect(); row.style.left = (g.right + GAP()) + 'px'; row.style.top = (r.top - 1) + 'px'; };
+    // the eraser: a brush (with its size beside it) or whole motifs, shown by a small square in its corner
+    const eb = document.querySelector('[data-tool="erase"]'), brush = S.eraseMode === 'knot';
+    eb.classList.toggle('brush', brush);
+    eb.title = brush ? 'Eraser · brush: drag to erase knots · tap again for whole motifs (E)' : 'Eraser · whole motifs: click one to remove it · tap again for a brush (E)';
+    const er = $('eraseRow'), eshow = brush && S.tool === 'erase' && free;
+    er.hidden = !eshow; if (eshow) place(er, eb);
+    if (!show) { row.hidden = true; return; }
+    row.hidden = false; place(row, btn);
+  }
+  // picking a colour folds the row away; tap the pencil again to bring it back, or tap the picked colour to change it
+  // the pencil's size: − and + beside its colours, from a single knot up to 5 × 5
+  const KNOT_MAX = 5;
+  function setKnotSize(n) {
+    S.knotSize = Math.max(1, Math.min(KNOT_MAX, n));
+    $('knotSmaller').disabled = S.knotSize <= 1; $('knotBigger').disabled = S.knotSize >= KNOT_MAX;
+    if (!rafOn) draw();
+  }
+  $('knotSmaller').addEventListener('click', e => { e.stopPropagation(); setKnotSize(S.knotSize - 1); });
+  $('knotBigger').addEventListener('click', e => { e.stopPropagation(); setKnotSize(S.knotSize + 1); });
+  setKnotSize(1);
+  function setEraseSize(n) {
+    S.eraseSize = Math.max(1, Math.min(KNOT_MAX, n));
+    $('eraseSmaller').disabled = S.eraseSize <= 1; $('eraseBigger').disabled = S.eraseSize >= KNOT_MAX;
+    if (!rafOn) draw();
+  }
+  $('eraseSmaller').addEventListener('click', e => { e.stopPropagation(); setEraseSize(S.eraseSize - 1); });
+  $('eraseBigger').addEventListener('click', e => { e.stopPropagation(); setEraseSize(S.eraseSize + 1); });
+  setEraseSize(1);
+  // tapping the eraser again switches it between whole motifs and a brush
+  function toggleErase() { S.eraseMode = S.eraseMode === 'knot' ? 'motif' : 'knot'; hint(S.eraseMode === 'knot' ? 'Eraser: brush' : 'Eraser: whole motifs'); syncAll(); if (!rafOn) draw(); }
+  $('knotRow').addEventListener('click', e => { const b = e.target.closest('.chipb'); if (!b) return; e.stopPropagation(); openPicker(DK, b); });   // the chip is the Line colour: tap it to change it, here and in the palette
+  window.addEventListener('resize', () => syncKnotRow());
   function syncAll() {
     pressed('[data-mirror]', b => b.dataset.mirror === S.mirror);
     drawMirrorIcon();
     pressed('[data-tool]', b => b.dataset.tool === S.tool);
+    syncKnotRow();
     $('bSound').setAttribute('aria-pressed', S.sound ? 'true' : 'false');
   }
   document.querySelectorAll('[data-mirror]').forEach(b => b.addEventListener('click', () => { S.mirror = S.lastMirror = b.dataset.mirror; syncAll(); }));
-  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => { S.tool = b.dataset.tool; syncAll(); }));
+  function setTool(t) { knotRowOpen = t === 'knot'; S.tool = t; if (t !== 'erase') S.lastDraw = t; syncAll(); if (!rafOn) draw(); }
+  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.tool === 'knot' && S.tool === 'knot') { knotRowOpen = !knotRowOpen; syncKnotRow(); return; }   // pencil again: show / hide its colours
+    if (b.dataset.tool === 'erase' && S.tool === 'erase') { toggleErase(); return; }                          // eraser again: whole motifs ↔ brush
+    if (b.dataset.tool === 'erase') S.eraseMode = 'motif';   // picking the eraser starts on whole motifs
+    setTool(b.dataset.tool);
+  }));
   function setRug(kw) {
     kw = Math.max(61, Math.min(161, kw)); if (kw % 2 === 0) kw++;
     if (kw === S.kw) return;
@@ -987,7 +1229,9 @@
     paintRug(g2, c, m + ex * c, m + ey * c);
     return oc.toDataURL('image/jpeg', 0.82);
   }
-  const rugData = () => ({ bg: S.bg, fringe: S.fringe, kw: S.kw, orient: S.orient, mirror: S.mirror, pal: S.pal, colors: S.colors.slice(), stamps: S.stamps.map(s => ({ ...s })), thumb: rugThumb(), savedAt: Date.now() });
+  // a saved carpet carries its own copy of any custom motif on it, so it still opens if that motif is deleted later
+  const usedCustom = () => { const o = {}; for (const t of S.stamps) if (t.m && isCustom(t.m) && LIB[t.m] && !o[t.m]) o[t.m] = { n: LIB[t.m].n, px: Array.from(LIB[t.m].px) }; return o; };
+  const rugData = () => ({ bg: S.bg, fringe: S.fringe, kw: S.kw, orient: S.orient, mirror: S.mirror, weave: S.weave, pal: S.pal, colors: S.colors.slice(), inks: S.inks.map(a => a.slice()), stamps: S.stamps.map(s => ({ ...s })), custom: usedCustom(), thumb: rugThumb(), savedAt: Date.now() });
   function renderColl() {
     const el = $('coll'); el.textContent = '';
     $('saveNow').firstElementChild.textContent = XS.curId ? 'Save changes' : 'Save Carpet';
@@ -1039,9 +1283,12 @@
     let uid = null; try { uid = user ? await user.id() : null; } catch (e) {}
     if (db && uid) {
       XS.db = db; XS.col = db.collection('data/users/' + uid);
-      XS.col.onSnapshot(snap => setRugs(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-        () => { XS.col = null; XS.local = true; setRugs(lsRead()); note(''); });
-    } else { XS.local = true; setRugs(lsRead()); note(''); }
+      XS.col.onSnapshot(snap => {
+        const md = snap.docs.find(d => d.id === MOTIF_DOC);
+        if (md) setCustom((md.data() || {}).list || []);
+        setRugs(snap.docs.filter(d => d.id !== MOTIF_DOC).map(d => ({ id: d.id, ...d.data() })));
+      }, () => { XS.col = null; XS.local = true; setRugs(lsRead()); setCustom(lsMotifs()); note(''); });
+    } else { XS.local = true; setRugs(lsRead()); setCustom(lsMotifs()); note(''); }
   }
   async function saveRug(asNew) {
     if (XS.busy) return; XS.busy = true;
@@ -1070,8 +1317,10 @@
     if (r.fringe) S.fringe = r.fringe;
     S.kw = r.kw || S.kw; S.orient = r.orient === 'h' ? 'h' : 'v'; S.mirror = r.mirror || S.mirror; S.pal = r.pal || 'Your colours';
     D = dims();
+    if (r.custom) for (const id in r.custom) if (!LIB[id] && isCustom(id)) defineCustom({ id, ...r.custom[id] });
     if (Array.isArray(r.colors) && r.colors.length === S.colors.length) S.colors = r.colors.slice();
-    S.stamps = r.stamps.filter(s => LIB[s.m]).map(s => ({ ...s }));
+    S.inks = Array.isArray(r.inks) ? r.inks.map(a => a.slice()) : [];
+    S.stamps = r.stamps.filter(s => s.kn || LIB[s.m]).map(s => ({ ...s }));
     gidN = S.stamps.reduce((m, s) => Math.max(m, (s.gid || 0) + 1), 1);
     turnTo(wideScreen() ? 'h' : 'v', false);
     undoStack.length = 0; redoStack.length = 0;
@@ -1081,8 +1330,160 @@
   $('saveNow').addEventListener('click', () => saveRug(false));
   $('saveCopy').addEventListener('click', () => saveRug(true));
   $('bSaved').addEventListener('click', () => { closeFly(); setSide('saved'); });
-  initCollection();
 
+
+  // ---------- custom motifs: draw your own on an 11 × 11 grid ----------
+  const PLUS_SVG = "<svg width=\"15\" height=\"15\" viewBox=\"0 0 15 15\" fill=\"currentColor\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><path d=\"M7 3h1v1h-1zM7 4h1v1h-1zM7 5h1v1h-1zM7 6h1v1h-1zM3 7h9v1h-9zM7 8h1v1h-1zM7 9h1v1h-1zM7 10h1v1h-1zM7 11h1v1h-1z\"/></svg>";
+  const MOTIF_DOC = '_motifs', LS_MOT = 'loom-motifs';
+  const isCustom = id => typeof id === 'string' && id.startsWith('Custom:');
+  const lsMotifs = () => { try { return JSON.parse(localStorage.getItem(LS_MOT) || '[]'); } catch (e) { return []; } };
+  let CM = [];                                   // your custom motifs, newest first: { id, n, px, t }
+  const HOLD = { t: 0, fired: false, x: 0, y: 0 };
+  function defineCustom(m) { LIB[m.id] = { id: m.id, n: m.n, d: 'custom', px: Int8Array.from(m.px), style: 'Custom', shape: 'custom', mono: false }; }
+  function customTile(m) {
+    let b = tileEls.get(m.id);
+    if (!b) {
+      b = document.createElement('button');
+      b.type = 'button'; b.className = 'tile'; b.dataset.id = m.id; b.dataset.tags = 'custom';
+      const c = document.createElement('canvas'); c.width = T + 2; c.height = T + 2; b.appendChild(c);
+      const x = document.createElement('span'); x.className = 'tdel'; x.textContent = '×'; x.title = 'Delete'; x.setAttribute('aria-label', 'Delete this motif'); b.appendChild(x);
+      tileEls.set(m.id, b);
+    }
+    b.title = m.n + ' · hold to edit'; b.setAttribute('aria-label', m.n);
+    b.setAttribute('aria-pressed', m.id === S.motif ? 'true' : 'false');
+    paintTile(b.firstChild, m.id);
+    return b;
+  }
+  // show exactly this list in the Custom tab, newest first, right after the + tile
+  function setCustom(list) {
+    CM = list.filter(m => m && isCustom(m.id) && Array.isArray(m.px) && m.px.length === T * T).sort((a, b) => (b.t || 0) - (a.t || 0));
+    const keep = new Set(CM.map(m => m.id));
+    for (const [id, b] of tileEls) if (isCustom(id) && !keep.has(id)) { b.remove(); tileEls.delete(id); }
+    let after = $('libAdd');
+    for (const m of CM) { defineCustom(m); const b = customTile(m); after.after(b); after = b; }
+    setFilter(libFilter);
+    if (isCustom(S.motif)) paintCurrent();
+  }
+  async function storeCustom() {
+    const list = CM.map(m => ({ id: m.id, n: m.n, px: Array.from(m.px), t: m.t }));
+    try {
+      if (XS.col) await XS.col.doc(MOTIF_DOC).set({ list });
+      else localStorage.setItem(LS_MOT, JSON.stringify(list));
+    } catch (e) { hint('Couldn’t save that motif just now.'); }
+  }
+  function deleteCustom(id) {
+    setCustom(CM.filter(m => m.id !== id)); storeCustom();
+    // carpets that use it keep it (LIB still has it); only the library tile goes
+    if (S.motif === id) selectMotif(LIB['Figure:18'] ? 'Figure:18' : POOL[0].id);
+  }
+  function remix(id) { if (!LIB[id]) return; isCustom(id) && CM.some(m => m.id === id) ? openMed(id, null) : openMed(null, id); }
+
+  const MED = { px: new Int8Array(T * T).fill(-1), role: DK, tool: 'paint', mirror: 'none', editId: null, cell: 44, last: null, undo: [], redo: [] };
+  const medGrid = $('medGrid'), medCtx = medGrid.getContext('2d');
+  function openMed(editId, fromId) {
+    if ($('side').dataset.show !== 'none') setSide($('side').dataset.show);
+    closeFly(); closeXform(); closeInfo();
+    MED.editId = editId; const src = editId || fromId;
+    MED.px = src && LIB[src] ? Int8Array.from(LIB[src].px) : new Int8Array(T * T).fill(-1);
+    MED.tool = 'paint'; MED.mirror = 'none';
+    MED.undo = []; MED.redo = [];
+    $('medPop').setAttribute('aria-label', editId ? 'Edit motif' : 'New motif');
+    $('medPop').hidden = false; $('medShade').hidden = false;
+    syncMed(); fitMed(); syncKnotRow();
+  }
+  function closeMed() { $('medPop').hidden = true; $('medShade').hidden = true; syncKnotRow(); }
+  const medEmpty = () => MED.px.every(v => v < 0);
+  function syncMed() {
+    $('medRoles').querySelectorAll('.chipb').forEach(b => { const r = +b.dataset.role; b.firstElementChild.style.background = S.colors[r]; b.setAttribute('aria-pressed', MED.tool === 'paint' && r === MED.role ? 'true' : 'false'); });
+    document.querySelectorAll('[data-med]').forEach(b => b.setAttribute('aria-pressed', b.dataset.med === MED.tool ? 'true' : 'false'));
+    $('medSave').setAttribute('aria-disabled', medEmpty() ? 'true' : 'false');
+    $('medUndo').setAttribute('aria-disabled', MED.undo.length ? 'false' : 'true');
+    $('medRedo').setAttribute('aria-disabled', MED.redo.length ? 'false' : 'true');
+    $('medMirrorIcon').innerHTML = MIRROR_ICONS[MED.mirror];
+    $('medMirror').title = MIRROR_NAMES[MED.mirror] + ' · click to change'; $('medMirror').setAttribute('aria-label', MIRROR_NAMES[MED.mirror] + '. Click to change');
+    drawMed();
+  }
+  // one grid cell = one button: as big as the toolbar's buttons when there's room, smaller on short or narrow screens
+  function fitMed() {
+    if ($('medPop').hidden) return;
+    const pop = $('medPop'), box = medGrid.parentElement, cs = getComputedStyle(box);
+    const phone = matchMedia('(max-width: 700px)').matches, rb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rb')) || 44;
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const roomH = (phone ? window.innerHeight : viewEl.clientHeight) - 2 * GAP() - padY - 4;   // grid + bar = 12 cells tall
+    let cell = Math.floor(Math.min(phone ? 48 : rb, roomH / 12));
+    if (phone) cell = Math.min(cell, Math.floor((box.clientWidth - padX - 2) / T));
+    cell = Math.max(16, cell);
+    MED.cell = cell;
+    pop.style.setProperty('--cell', cell + 'px');
+    pop.style.setProperty('--ico', (cell >= 40 ? 22.5 : cell >= 28 ? 20 : 15) + 'px');   // icon pixels stay whole: 1.5, 4/3 or 1 css px
+    pop.style.setProperty('--chip', Math.round(cell * 0.41) + 'px');
+    medGrid.style.width = medGrid.style.height = (cell * T + 2) + 'px';
+    drawMed();
+  }
+  function drawMed() {
+    // drawn in device pixels; the lines sit exactly where the buttons' dividers continue them
+    const dpr = window.devicePixelRatio || 1, c = MED.cell * dpr, n = Math.round(c * T);
+    if (medGrid.width !== n) medGrid.width = medGrid.height = n;
+    const g = medCtx, E = i => Math.round(i * c); g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = S.colors[F]; g.fillRect(0, 0, n, n);
+    const dot = Math.max(2, Math.round(c * 0.1));
+    const [br, bgc, bb] = hexRgb(S.colors[F]), light = (0.299 * br + 0.587 * bgc + 0.114 * bb) > 140;
+    const ink = a => light ? `rgba(0,0,0,${a * 1.3})` : `rgba(255,255,255,${a})`;
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+      const r = MED.px[y * T + x], x0 = E(x), y0 = E(y), w = E(x + 1) - x0, h = E(y + 1) - y0;
+      // a plain grid: painted cells in their colour, empty ones in the base, marked with a faint dot
+      g.fillStyle = S.colors[r >= 0 ? r : F]; g.fillRect(x0, y0, w, h);
+      if (r < 0) { g.fillStyle = ink(0.22); g.fillRect(x0 + Math.round((w - dot) / 2), y0 + Math.round((h - dot) / 2), dot, dot); }   // empty: a faint dot, so it reads apart from Base
+    }
+    const lw = Math.max(1, Math.round(dpr));
+    g.fillStyle = ink(0.16);   // a little lighter than a dark base, a little darker than a light one
+    for (let i = 1; i < T; i++) { g.fillRect(E(i) - (i ? Math.floor(lw / 2) : 0), 0, lw, n); g.fillRect(0, E(i) - Math.floor(lw / 2), n, lw); }
+    // mirror: a dashed guide down the middle of the centre row / column
+    if (MED.mirror !== 'none') {
+      g.fillStyle = ink(0.5); const m = Math.round(n / 2) - Math.floor(lw / 2), d = Math.max(2, Math.round(c / 6));
+      for (let k = 0; k < n; k += 2 * d) {
+        if (MED.mirror === 'h' || MED.mirror === 'both') g.fillRect(m, k, lw, d);
+        if (MED.mirror === 'v' || MED.mirror === 'both') g.fillRect(k, m, d, lw);
+      }
+    }
+  }
+  const medCell = e => { const r = medGrid.getBoundingClientRect(); return [Math.floor((e.clientX - r.left - 1) / MED.cell), Math.floor((e.clientY - r.top - 1) / MED.cell)]; };
+  function medPaint(cells) {
+    const v = MED.tool === 'erase' ? -1 : MED.role, mh = MED.mirror === 'h' || MED.mirror === 'both', mv = MED.mirror === 'v' || MED.mirror === 'both';
+    const put = (x, y) => { if (x >= 0 && y >= 0 && x < T && y < T) MED.px[y * T + x] = v; };
+    for (const [x, y] of cells) { put(x, y); if (mh) put(T - 1 - x, y); if (mv) put(x, T - 1 - y); if (mh && mv) put(T - 1 - x, T - 1 - y); }
+    syncMed();
+  }
+  const medSnap = () => { MED.undo.push(Int8Array.from(MED.px)); if (MED.undo.length > 80) MED.undo.shift(); MED.redo = []; };
+  function medStep(from, to) { if (!from.length) return; to.push(Int8Array.from(MED.px)); MED.px = from.pop(); syncMed(); }
+  medGrid.addEventListener('pointerdown', e => { e.preventDefault(); medGrid.setPointerCapture(e.pointerId); const c = medCell(e); MED.last = c; medSnap(); medPaint([c]); });
+  medGrid.addEventListener('pointermove', e => { if (!MED.last) return; const c = medCell(e); if (c[0] === MED.last[0] && c[1] === MED.last[1]) return; medPaint(lineCells(MED.last[0], MED.last[1], c[0], c[1])); MED.last = c; });
+  ['pointerup', 'pointercancel'].forEach(n => medGrid.addEventListener(n, () => { MED.last = null; }));
+  $('medRoles').addEventListener('click', e => {
+    const b = e.target.closest('.chipb'); if (!b) return;
+    const r = +b.dataset.role;
+    if (MED.tool === 'paint' && MED.role === r) { e.stopPropagation(); openPicker(r, b); return; }
+    MED.role = r; MED.tool = 'paint'; syncMed();
+  });
+  $('medUndo').addEventListener('click', () => medStep(MED.undo, MED.redo));
+  $('medRedo').addEventListener('click', () => medStep(MED.redo, MED.undo));
+  document.querySelectorAll('[data-med]').forEach(b => b.addEventListener('click', () => { MED.tool = MED.tool === 'erase' ? 'paint' : 'erase'; syncMed(); }));
+  $('medMirror').addEventListener('click', e => { MED.mirror = MIRRORS[(MIRRORS.indexOf(MED.mirror) + (back(e) ? 3 : 1)) % 4]; syncMed(); });
+  $('medClear').addEventListener('click', () => { if (medEmpty()) return; medSnap(); MED.px.fill(-1); syncMed(); });
+  $('medClose').addEventListener('click', closeMed);
+  $('medSave').addEventListener('click', () => {
+    if (medEmpty()) return;
+    const id = MED.editId || ('Custom:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+    const old = CM.find(m => m.id === id);
+    const used = new Set(CM.map(m => m.n)); let k = CM.length + 1; while (used.has('Custom ' + k)) k++;
+    const m = { id, n: old ? old.n : 'Custom ' + k, px: Array.from(MED.px), t: old ? old.t : Date.now() };
+    setCustom([m, ...CM.filter(x => x.id !== id)]); storeCustom();
+    closeMed();
+    if (old) { for (const [tid, b] of tileEls) if (tid === id) paintTile(b.firstChild, id); refresh(null); }   // an edit shows everywhere it is stamped
+    if (libFilter !== 'Custom') setFilter('Custom');
+    selectMotif(id, true);
+  });
+  window.addEventListener('resize', fitMed);
   // ---------- motif transform: R / T rotate, + / − size ----------
   function drawXf() {}
   function rotate(dir) { S.rot = (((S.rot || 0) + dir) % 4 + 4) % 4; paintCurrent(); if (!rafOn) draw(); }
@@ -1095,9 +1496,9 @@
     if ($('side').dataset.show === 'lib' && !$('library').contains(e.target) && !$('railLib').contains(e.target)) setSide('lib');
   }, true);
   // info popup
-  function closeInfo() { $('infoPop').hidden = true; $('infoShade').hidden = true; $('infoBtn').setAttribute('aria-expanded', 'false'); }
+  function closeInfo() { $('infoPop').hidden = true; $('infoShade').hidden = true; $('infoBtn').setAttribute('aria-expanded', 'false'); syncKnotRow(); }
   $('infoClose').addEventListener('click', closeInfo);
-  $('infoBtn').addEventListener('click', () => { const open = $('infoPop').hidden; $('infoPop').hidden = !open; $('infoShade').hidden = !open; $('infoBtn').setAttribute('aria-expanded', String(open)); });
+  $('infoBtn').addEventListener('click', () => { const open = $('infoPop').hidden; $('infoPop').hidden = !open; $('infoShade').hidden = !open; $('infoBtn').setAttribute('aria-expanded', String(open)); syncKnotRow(); });
 
   // ---------- start ----------
   function resetRug(animate) {
@@ -1127,10 +1528,11 @@
   function reorient() { if (!turnTo(wideScreen() ? 'h' : 'v', true)) return false; resetRug(); if (XS.ready) renderColl(); return true; }
   window.addEventListener('resize', () => { clearTimeout(reorient._t); reorient._t = setTimeout(reorient, 200); });
   new ResizeObserver(() => { const keep = Math.abs(V.s - V.fit) < 1e-6; resize(); if (keep || !grid) fitView(); else draw(); }).observe(viewEl);
-  renderLib(); renderPals(); renderMine();
+  renderLib(); renderMine();
   allocKnots(); palRGB = S.colors.map(hexRgb);
   seedRug(); build(); shown.set(grid); repaintAll();
   readTheme(); setTheme(document.documentElement.dataset.theme);
   syncAll(); resize(); fitView(); status();
   selectMotif(S.motif, true);
+  initCollection();   // after the library exists: your custom motifs load into it
 })();

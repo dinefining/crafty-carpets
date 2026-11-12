@@ -1,5 +1,3 @@
-/* Crafty Carpets — styles */
-
 /* Layout: a tool rail of square buttons stuck to the left edge (Photoshop-style); the motif library opens beside it; the rug canvas fills the rest.
    Settings that need more than one click open a flyout next to their button. On tablet/phone the rail stays left and motifs become a bottom carousel.
    Deliberately single-theme (dark). */
@@ -159,6 +157,41 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 .xform .xval { display: grid; place-items: center; min-width: calc(var(--rb) - 1px); padding: 0 4px; box-sizing: border-box; border-left: 1px solid var(--line); font-size: var(--t-l); letter-spacing: 0.04em; color: var(--fg); font-variant-numeric: tabular-nums; }
 .xform .xval + button { border-left: 1px solid var(--line); }
 .xform button:active { background: var(--fg); color: var(--on-fg); }
+/* horizontal button groups (pencil colours, the motif editor's bar): the toolbar's joined squares, laid sideways */
+.grp.h { flex-direction: row; width: auto; height: var(--rb); }
+.grp.h .rb { width: calc(var(--rb) - 2px); height: 100%; }
+.grp.h .rb + .rb { border-top: 0; border-left: 1px solid var(--line); width: calc(var(--rb) - 1px); }
+.knotRow { position: fixed; z-index: 26; }
+/* the pencil shows the colour it paints with in its corner */
+.rb .tooldot { position: absolute; left: 5px; top: 5px; width: 7px; height: 7px; border: 1px solid var(--line); pointer-events: none; }
+@media (max-width: 700px) { .rb .tooldot { left: 4px; top: 4px; width: 6px; height: 6px; } }
+.knotRow[hidden] { display: none; }
+/* pencil size: − value + after the colours */
+.knotRow .ksz:disabled { opacity: 0.35; cursor: default; }
+.knotRow .kszv { display: flex; align-items: center; justify-content: center; cursor: default; font-variant-numeric: tabular-nums; }
+/* a colour chip inside a button: the role's colour, edged so a dark base still shows */
+.chipb i { display: block; width: 18px; height: 18px; border: 1px solid var(--line); box-sizing: border-box; }
+.chipb[aria-pressed="true"] i { border-color: var(--on-fg); }
+@media (max-width: 700px) { .chipb i { width: 16px; height: 16px; } }
+/* motif editor: the info popup's stepped panel, sized to its grid */
+.info.med { container-type: normal; width: max-content; --px: calc(3 * var(--s) + 16px); --cell: 44px; --ico: 22.5px; --chip: 18px; }   /* wide enough that the bar clears the stepped corners */
+.med .infoBox { display: flex; flex-direction: column; align-items: center; padding: var(--px); }   /* the same space on all four sides */
+#medGrid { display: block; flex: none; touch-action: none; cursor: crosshair; border: 1px solid var(--line); }
+.medBar { display: flex; width: calc(11 * var(--cell) + 2px); margin-top: -1px; }   /* joined to the grid: one row of 11 buttons, one per column */
+/* editor buttons are exactly one grid cell, so their dividers continue the grid's lines */
+.medBar .grp.h { height: calc(var(--cell) + 2px); }
+.medBar .grp.h .rb, .medBar .grp.h .rb + .rb { width: var(--cell); height: var(--cell); }
+.medBar .grp.h .rb:first-child { width: var(--cell); }
+.medBar .rb svg { width: var(--ico); height: var(--ico); }
+.medBar .rb[aria-disabled="true"] { color: var(--dim); cursor: default; }
+.medBar .chipb i { width: var(--chip); height: var(--chip); }
+#medMirror[data-on="true"] { color: var(--fg); }
+#medSave[aria-disabled="true"] { color: var(--dim); cursor: default; }
+/* phones: nearly full width so the cells (and buttons) stay big enough to tap; tall enough top and bottom that the grid clears the stepped corners */
+@media (max-width: 700px) {
+  .info.med { inset: auto var(--gap); top: 50%; transform: translateY(-50%); width: auto; --px: 16px; }
+  .med .infoBox { flex: none; padding: calc(4 * var(--s) + 12px) var(--px); }
+}
 .fly { position: fixed; z-index: 25; background: var(--panel); border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
 .fly .cl { color: var(--mute); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--t-s); }
 .fly [data-fly] { display: flex; flex-direction: column; gap: 8px; }
@@ -214,6 +247,15 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mo
 .tile:hover { box-shadow: inset 0 0 0 1px var(--edge); }
 .tile[aria-pressed="true"]::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--fg); pointer-events: none; }
 .tile:focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; z-index: 3; }
+/* Custom tab: a “+” tile to start a motif, and a delete corner on your own ones */
+.tile[hidden] { display: none; }
+.tile.add { display: grid; place-items: center; color: var(--icon); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.tile.add:hover { color: var(--fg); box-shadow: inset 0 0 0 1px var(--edge); }
+.tile.add svg { width: 22.5px; height: 22.5px; }
+.tile .tdel { position: absolute; top: 0; right: 0; width: 20px; height: 20px; display: none; place-items: center; font-size: var(--t-m); line-height: 1; background: var(--panel); color: var(--fg); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.tile:hover .tdel, .tile .tdel.arm { display: grid; }
+.tile .tdel:hover, .tile .tdel.arm { background: var(--fg); color: var(--on-fg); }
+@media (hover: none) { .tile .tdel { display: grid; } }
 #libToggle { display: none; }
 .tabs { display: flex; gap: 16px; overflow-x: auto; flex: none; padding: 0 12px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
@@ -239,7 +281,7 @@ button.b:focus-visible, .pal:focus-visible, .swatch:focus-visible { outline: 1px
 .zoomrow button.b { margin: 0 0 0 -1px; }
 .zoomrow button.b:first-child { margin: 0; }
 #zoomPct { border: 1px solid var(--line); border-width: 1px 0; text-align: center; line-height: 25px; color: var(--mute); font-variant-numeric: tabular-nums; }
-.swatches { display: grid; grid-template-columns: repeat(2, 34px) 9px repeat(5, 34px); justify-content: start; column-gap: 0; row-gap: 3px; }
+.swatches { display: grid; grid-template-columns: 34px 9px repeat(6, 34px); justify-content: start; column-gap: 0; row-gap: 3px; }
 .swsep { width: 1px; height: 18px; margin: 6px auto 0; background: var(--line); }
 .swatch { all: unset; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0; overflow: visible; white-space: nowrap; color: var(--mute); font-size: var(--t-s); text-align: center; }
 .swatch .chip { width: 30px; height: 30px; box-sizing: border-box; border: 1px solid var(--line); display: block; margin: 0 auto; }
@@ -262,7 +304,7 @@ button.b:focus-visible, .pal:focus-visible, .swatch:focus-visible { outline: 1px
 .cur:focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; }
 
 /* ---------- colour picker & export ---------- */
-.picker { position: fixed; z-index: 30; background: var(--panel); border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 8px; width: 248px; }
+.picker { position: fixed; z-index: 32; background: var(--panel); border: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 8px; width: 248px; }
 .picker canvas { display: block; width: 100%; cursor: crosshair; touch-action: none; border: 1px solid var(--line); }
 #pkSV { flex: 1; min-height: 60px; }
 #pkH { height: 14px; flex: none; }
@@ -291,3 +333,13 @@ button.b:focus-visible, .pal:focus-visible, .swatch:focus-visible { outline: 1px
 :root[data-theme="light"] .themeBtn .i-sun, :root:not([data-theme="light"]) .themeBtn .i-moon { display: none; }
 
 .savebar .mi { font-size: var(--t-l); }   /* SAVE CARPET is a button label */
+
+/* colour panel heading: the label on the left, Randomise on the right */
+.fly .clrow { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
+.fly .clbtn { all: unset; cursor: pointer; color: var(--mute); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--t-s); }
+.fly .clbtn:hover, .fly .clbtn:focus-visible { color: var(--fg); }
+
+/* the eraser's mode, in its corner like the pencil's colour dot: a filled square for whole motifs, a hollow one for the brush */
+.rb .erasedot { position: absolute; left: 5px; top: 5px; width: 7px; height: 7px; box-sizing: border-box; border: 1px solid currentColor; background: currentColor; pointer-events: none; }
+.rb.brush .erasedot { background: none; }
+@media (max-width: 700px) { .rb .erasedot { left: 4px; top: 4px; width: 6px; height: 6px; } }
