@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crafty Carpets</title>
+<meta name="description" content="Weave your own rug: pick motifs, paint them onto a knotted grid, mirror, rotate, recolour and export.">
+<meta name="theme-color" content="#141414">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Crafty Carpets">
+<meta property="og:description" content="Weave your own rug: pick motifs, paint them onto a knotted grid, mirror, rotate, recolour and export.">
+<meta property="og:image" content="https://dinefining.github.io/crafty-carpets/og.png?v=6">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" id="rail" aria-label="Tools">
+    <button class="rb" type="button" id="railLib" aria-pressed="false" aria-label="Current motif. Open the motif library" title="Current motif · open motifs"><canvas id="railCur" width="13" height="13"></canvas></button>
+    <div class="grp" id="gTools" role="group" aria-label="Tools">
+      <button class="rb" type="button" data-open="colour" aria-expanded="false" aria-label="Colours" title="Colours"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M5 0h6v1h-6zM3 1h2v1h-2zM7 1h6v1h-6zM2 2h2v1h-2zM5 2h1v1h-1zM8 2h2v1h-2zM12 2h2v1h-2zM1 3h4v1h-4zM7 3h2v1h-2zM10 3h1v1h-1zM13 3h2v1h-2zM1 4h9v1h-9zM12 4h3v1h-3zM0 5h3v1h-3zM5 5h7v1h-7zM14 5h2v1h-2zM0 6h2v1h-2zM3 6h1v1h-1zM6 6h5v1h-5zM15 6h1v1h-1zM0 7h3v1h-3zM5 7h6v1h-6zM15 7h1v1h-1zM0 8h12v1h-12zM14 8h2v1h-2zM0 9h4v1h-4zM6 9h2v1h-2zM11 9h5v1h-5zM1 10h2v1h-2zM4 10h1v1h-1zM7 10h1v1h-1zM12 10h3v1h-3zM1 11h3v1h-3zM6 11h4v1h-4zM2 12h9v1h-9zM3 13h8v1h-8zM5 14h5v1h-5z"/></svg></button>
+      <button class="rb" type="button" data-tool="paint" aria-label="Paint" title="Paint"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M11 0h1v1h-1zM10 1h1v1h-1zM12 1h1v1h-1zM9 2h1v1h-1zM13 2h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM14 3h1v1h-1zM7 4h1v1h-1zM11 4h1v1h-1zM13 4h1v1h-1zM6 5h1v1h-1zM12 5h1v1h-1zM5 6h1v1h-1zM11 6h1v1h-1zM4 7h1v1h-1zM10 7h1v1h-1zM3 8h1v1h-1zM9 8h1v1h-1zM2 9h1v1h-1zM8 9h1v1h-1zM2 10h2v1h-2zM7 10h1v1h-1zM1 11h1v1h-1zM4 11h1v1h-1zM6 11h1v1h-1zM1 12h1v1h-1zM4 12h2v1h-2zM0 13h1v1h-1zM2 13h2v1h-2zM0 14h15v1h-15z"/></svg></button>
+      <button class="rb" type="button" data-tool="erase" aria-label="Erase" title="Erase"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M9 0h1v1h-1zM8 1h1v1h-1zM10 1h1v1h-1zM7 2h1v1h-1zM11 2h1v1h-1zM6 3h1v1h-1zM12 3h1v1h-1zM5 4h1v1h-1zM13 4h1v1h-1zM4 5h1v1h-1zM14 5h1v1h-1zM3 6h1v1h-1zM13 6h1v1h-1zM2 7h2v1h-2zM12 7h1v1h-1zM1 8h4v1h-4zM11 8h1v1h-1zM0 9h6v1h-6zM10 9h1v1h-1zM1 10h6v1h-6zM9 10h1v1h-1zM2 11h7v1h-7zM3 12h5v1h-5zM4 13h3v1h-3zM0 14h15v1h-15z"/></svg></button>
+      <button class="rb" type="button" id="bUndo" aria-label="Undo" title="Undo (⌘Z)"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M4 3h1v1h-1zM3 4h2v1h-2zM2 5h1v1h-1zM4 5h1v1h-1zM1 6h1v1h-1zM4 6h1v1h-1zM0 7h1v1h-1zM4 7h8v1h-8zM1 8h1v1h-1zM4 8h1v1h-1zM12 8h1v1h-1zM2 9h1v1h-1zM4 9h1v1h-1zM13 9h1v1h-1zM3 10h2v1h-2zM13 10h1v1h-1zM4 11h1v1h-1z"/></svg></button>
+      <button class="rb" type="button" id="bRedo" aria-label="Redo" title="Redo (⇧⌘Z)"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M10 3h1v1h-1zM10 4h2v1h-2zM10 5h1v1h-1zM12 5h1v1h-1zM10 6h1v1h-1zM13 6h1v1h-1zM3 7h8v1h-8zM14 7h1v1h-1zM2 8h1v1h-1zM10 8h1v1h-1zM13 8h1v1h-1zM1 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM1 10h1v1h-1zM10 10h2v1h-2zM10 11h1v1h-1z"/></svg></button>
+      <button class="rb" type="button" id="bClear" aria-label="Clear all" title="Clear all"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M4 0h7v1h-7zM0 1h15v1h-15zM0 2h2v1h-2zM13 2h2v1h-2zM1 3h1v1h-1zM13 3h1v1h-1zM1 4h1v1h-1zM13 4h1v1h-1zM1 5h1v1h-1zM5 5h1v1h-1zM9 5h1v1h-1zM13 5h1v1h-1zM1 6h1v1h-1zM5 6h1v1h-1zM9 6h1v1h-1zM13 6h1v1h-1zM1 7h1v1h-1zM5 7h1v1h-1zM9 7h1v1h-1zM13 7h1v1h-1zM1 8h1v1h-1zM5 8h1v1h-1zM9 8h1v1h-1zM13 8h1v1h-1zM1 9h1v1h-1zM5 9h1v1h-1zM9 9h1v1h-1zM13 9h1v1h-1zM1 10h1v1h-1zM5 10h1v1h-1zM9 10h1v1h-1zM13 10h1v1h-1zM1 11h1v1h-1zM13 11h1v1h-1zM1 12h1v1h-1zM13 12h1v1h-1zM1 13h1v1h-1zM13 13h1v1h-1zM2 14h11v1h-11z"/></svg></button>
+      <button class="rb" type="button" id="mirrorBtn" aria-label="Mirror" title="Mirror"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" id="mirrorIcon"></svg></button>
+      <button class="rb" type="button" id="bXform" aria-pressed="false" aria-label="Rotate and size the motif" title="Rotate and size"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h3v1h-3zM12 0h3v1h-3zM0 1h1v1h-1zM2 1h1v1h-1zM12 1h1v1h-1zM14 1h1v1h-1zM0 2h15v1h-15zM2 3h1v1h-1zM12 3h1v1h-1zM2 4h1v1h-1zM12 4h1v1h-1zM2 5h1v1h-1zM12 5h1v1h-1zM2 6h1v1h-1zM12 6h1v1h-1zM2 7h1v1h-1zM12 7h1v1h-1zM2 8h1v1h-1zM12 8h1v1h-1zM2 9h1v1h-1zM12 9h1v1h-1zM2 10h1v1h-1zM12 10h1v1h-1zM2 11h1v1h-1zM12 11h1v1h-1zM0 12h15v1h-15zM0 13h1v1h-1zM2 13h1v1h-1zM12 13h1v1h-1zM14 13h1v1h-1zM0 14h3v1h-3zM12 14h3v1h-3z"/></svg></button>
+    </div>
+    <div class="grp" id="gOut" role="group" aria-label="Save and download">
+      <button class="rb" type="button" id="bSaved" aria-pressed="false" aria-label="Your collection — save this rug or open a saved one" title="Collection · ⌘S saves"><svg class="h0" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 2h4v1h-4zM10 2h4v1h-4zM1 3h1v1h-1zM6 3h1v1h-1zM9 3h1v1h-1zM14 3h1v1h-1zM0 4h1v1h-1zM7 4h2v1h-2zM15 4h1v1h-1zM0 5h1v1h-1zM15 5h1v1h-1zM0 6h1v1h-1zM15 6h1v1h-1zM1 7h1v1h-1zM14 7h1v1h-1zM2 8h1v1h-1zM13 8h1v1h-1zM3 9h1v1h-1zM12 9h1v1h-1zM4 10h1v1h-1zM11 10h1v1h-1zM5 11h1v1h-1zM10 11h1v1h-1zM6 12h1v1h-1zM9 12h1v1h-1zM7 13h2v1h-2z"/></svg><svg class="h1" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 2h4v1h-4zM10 2h4v1h-4zM1 3h6v1h-6zM9 3h6v1h-6zM0 4h2v1h-2zM4 4h12v1h-12zM0 5h1v1h-1zM2 5h14v1h-14zM0 6h16v1h-16zM1 7h14v1h-14zM2 8h12v1h-12zM3 9h10v1h-10zM4 10h8v1h-8zM5 11h6v1h-6zM6 12h4v1h-4zM7 13h2v1h-2z"/></svg></button>
+      <button class="rb" type="button" id="bExport" data-open="export" aria-expanded="false" aria-label="Export image" title="Export"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M5 0h5v1h-5zM3 1h2v1h-2zM10 1h2v1h-2zM2 2h1v1h-1zM12 2h1v1h-1zM1 3h1v1h-1zM7 3h1v1h-1zM13 3h1v1h-1zM1 4h1v1h-1zM7 4h1v1h-1zM13 4h1v1h-1zM0 5h1v1h-1zM7 5h1v1h-1zM14 5h1v1h-1zM0 6h1v1h-1zM7 6h1v1h-1zM14 6h1v1h-1zM0 7h1v1h-1zM4 7h1v1h-1zM7 7h1v1h-1zM10 7h1v1h-1zM14 7h1v1h-1zM0 8h1v1h-1zM5 8h1v1h-1zM7 8h1v1h-1zM9 8h1v1h-1zM14 8h1v1h-1zM0 9h1v1h-1zM6 9h3v1h-3zM14 9h1v1h-1zM1 10h1v1h-1zM7 10h1v1h-1zM13 10h1v1h-1zM1 11h1v1h-1zM13 11h1v1h-1zM2 12h1v1h-1zM12 12h1v1h-1zM3 13h2v1h-2zM10 13h2v1h-2zM5 14h5v1h-5z"/></svg></button>
+    </div>
+  </nav>
+
+  <div class="side" id="side" data-show="none">
+    <aside class="library" id="library" aria-label="Motif library">
+      <div hidden><span id="mcount"></span><button id="libToggle"></button></div>
+      <div class="tabs" id="tabs" role="toolbar" aria-label="Filter motifs by tradition"></div>
+      <div class="lib" id="lib"></div>
+    </aside>
+    <aside class="collection" id="collection" aria-label="Your collection">
+      <div class="coll" id="coll"></div>
+      <div class="collnote" id="collNote" hidden></div>
+      <div class="savebar">
+        <button class="mi" type="button" id="saveNow"><span>Save Carpet</span></button>
+        <button class="mi" type="button" id="saveCopy" hidden><span>Save as new</span></button>
+      </div>
+    </aside>
+  </div>
+
+  <section class="view" id="view" aria-label="Rug canvas">
+    <canvas id="cv" aria-label="Rug: click to paint the selected motif"></canvas>
+    <button class="infoBtn" type="button" id="infoBtn" aria-label="How it works" aria-expanded="false" title="How it works"><span class="i">I</span></button>
+    <div class="infoShade" id="infoShade" hidden></div>
+    <div class="info" id="infoPop" hidden role="dialog" aria-label="Crafty Carpets — how it works">
+      <div class="infoBox">
+        <h1 class="infoTitle">Crafty Carpets</h1>
+        <dl>
+        <dt>Click / drag</dt><dd>Paint motif</dd>
+        <dt>R</dt><dd>Rotate right</dd>
+        <dt>T</dt><dd>Rotate left</dd>
+        <dt>+</dt><dd>Increase motif size</dd>
+        <dt>−</dt><dd>Decrease motif size</dd>
+        <dt>M</dt><dd>Change mirror</dd>
+        <dt>E</dt><dd>Eraser on / off</dd>
+        <dt>[</dt><dd>Previous motif</dd>
+        <dt>]</dt><dd>Next motif</dd>
+        <dt>Cmd+Z</dt><dd>Undo</dd>
+        <dt>Cmd+Shift+Z</dt><dd>Redo</dd>
+        <dt>Cmd+S</dt><dd>Save to collection</dd>
+        <dt>Pinch</dt><dd>Zoom</dd>
+        <dt>Space + drag</dt><dd>Pan</dd>
+      </dl>
+        <p class="infoBy"><span>A <a href="https://maybemachines.com" target="_blank" rel="noopener">Maybe Machine</a></span> <span>by <a href="https://ravipopat.info" target="_blank" rel="noopener">Ravi Popat</a></span></p>
+      </div>
+      <button class="infoClose" type="button" id="infoClose" aria-label="Close"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 1h1v1h-1zM13 1h1v1h-1zM2 2h1v1h-1zM12 2h1v1h-1zM3 3h1v1h-1zM11 3h1v1h-1zM4 4h1v1h-1zM10 4h1v1h-1zM5 5h1v1h-1zM9 5h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM7 7h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM5 9h1v1h-1zM9 9h1v1h-1zM4 10h1v1h-1zM10 10h1v1h-1zM3 11h1v1h-1zM11 11h1v1h-1zM2 12h1v1h-1zM12 12h1v1h-1zM1 13h1v1h-1zM13 13h1v1h-1z"/></svg></button>
+    </div>
+    <div hidden><button id="zoomBtn"></button></div>
+    <div hidden><span id="railTile"></span><span id="railRug"></span><button id="tileBtn"></button><button id="rugBtn"></button><button id="fitBtn"></button></div>
+  </section>
+
+  <div class="xform" id="xform" hidden role="toolbar" aria-label="Rotate and size the motif">
+    <button type="button" data-x="ccw" aria-label="Rotate left"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M5 0h1v1h-1zM4 1h1v1h-1zM3 2h1v1h-1zM6 2h4v1h-4zM4 3h1v1h-1zM10 3h1v1h-1zM5 4h1v1h-1zM11 4h1v1h-1zM12 5h1v1h-1zM13 6h1v1h-1zM1 7h1v1h-1zM13 7h1v1h-1zM1 8h1v1h-1zM13 8h1v1h-1zM1 9h1v1h-1zM13 9h1v1h-1zM1 10h1v1h-1zM13 10h1v1h-1zM2 11h1v1h-1zM12 11h1v1h-1zM3 12h1v1h-1zM11 12h1v1h-1zM4 13h1v1h-1zM10 13h1v1h-1zM5 14h5v1h-5z"/></svg></button>
+    <button type="button" data-x="cw" aria-label="Rotate right"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M9 0h1v1h-1zM10 1h1v1h-1zM5 2h4v1h-4zM11 2h1v1h-1zM4 3h1v1h-1zM10 3h1v1h-1zM3 4h1v1h-1zM9 4h1v1h-1zM2 5h1v1h-1zM1 6h1v1h-1zM1 7h1v1h-1zM13 7h1v1h-1zM1 8h1v1h-1zM13 8h1v1h-1zM1 9h1v1h-1zM13 9h1v1h-1zM1 10h1v1h-1zM13 10h1v1h-1zM2 11h1v1h-1zM12 11h1v1h-1zM3 12h1v1h-1zM11 12h1v1h-1zM4 13h1v1h-1zM10 13h1v1h-1zM5 14h5v1h-5z"/></svg></button>
+    <button type="button" data-x="minus" aria-label="Smaller"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M3 7h9v1h-9z"/></svg></button>
+    <span class="xval" id="xval" aria-live="polite">1x</span>
+    <button type="button" data-x="plus" aria-label="Larger"><svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M7 3h1v1h-1zM7 4h1v1h-1zM7 5h1v1h-1zM7 6h1v1h-1zM3 7h9v1h-9zM7 8h1v1h-1zM7 9h1v1h-1zM7 10h1v1h-1zM7 11h1v1h-1z"/></svg></button>
+  </div>
+  <div class="fly" id="fly" hidden role="dialog" aria-label="Settings">
+    <div data-fly="tile">
+      <span class="cl">Tile size</span>
+      <div class="stepper"><button class="b" type="button" id="tileDn" aria-label="Smaller motifs">−</button><span class="scrub" id="tileVal" title="Drag sideways to change">1×</span><button class="b" type="button" id="tileUp" aria-label="Bigger motifs">+</button></div>
+    </div>
+    <div data-fly="rug">
+      <span class="cl">Rug size · knots</span>
+      <div class="stepper"><button class="b" type="button" id="rugDn" aria-label="Smaller rug">−</button><span class="scrub" id="rugVal" title="Drag sideways to change">81×123</span><button class="b" type="button" id="rugUp" aria-label="Bigger rug">+</button></div>
+    </div>
+    <div data-fly="colour">
+      <span class="cl">Colour <span id="palName" hidden></span></span>
+      <div class="swatches" id="mine"></div>
+      <span class="cl">Presets</span>
+      <div class="pals" id="pals"></div>
+    </div>
+    <div data-fly="export" role="menu">
+      <button class="mi" type="button" role="menuitem" data-ex="jpeg" aria-label="Download as JPG"><span>JPG</span></button>
+      <button class="mi" type="button" role="menuitem" data-ex="png" aria-label="Download as PNG"><span>PNG</span></button>
+    </div>
+    <div data-fly="zoom">
+      <span class="cl">Zoom</span>
+      <div class="zoomrow">
+        <button class="b" type="button" id="zOut" aria-label="Zoom out">−</button>
+        <span id="zoomPct">100%</span>
+        <button class="b" type="button" id="zIn" aria-label="Zoom in">+</button>
+        <button class="b" type="button" id="zFit">Fit</button>
+      </div>
+    </div>
+  </div>
+
+  <div hidden><span id="sizeTag"></span><span id="st1"></span><span id="hint"></span><button id="bSound"></button></div>
+
+  <div class="picker" id="picker" hidden role="dialog" aria-label="Colour picker">
+    <canvas id="pkSV" width="208" height="132"></canvas>
+    <canvas id="pkH" width="208" height="12"></canvas>
+    <div class="pkrow"><span id="pkName">Base</span><input id="pkHex" maxlength="7" spellcheck="false" aria-label="Hex colour"></div>
+  </div>
+
+  <div class="overlay" id="ov" hidden>
+    <div class="sheet">
+      <div class="bar">
+        <span>Right-click or long-press the image to save it.</span>
+        <button class="b" type="button" id="bCopyImg">Copy image</button>
+        <button class="b" type="button" id="bClose">Close</button>
+      </div>
+      <img id="outImg" alt="Exported rug">
+    </div>
+  </div>
+</div>
+
+<script src="motifs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
